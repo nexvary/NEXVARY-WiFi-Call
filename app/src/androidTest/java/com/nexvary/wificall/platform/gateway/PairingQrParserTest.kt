@@ -26,6 +26,17 @@ class PairingQrParserTest {
         assertNull(PairingQrParser.parse(null))
     }
 
+    @Test fun androidIcuPatternAcceptsBracesAndRejectsEveryRawControlCharacter() {
+        // Exercise Android's ICU regex, which requires escaping the closing object brace.
+        assertNotNull(PairingQrParser.parse(payload()))
+        (0..31).forEach { value ->
+            val invalid = payload().replace(code, "prefix" + value.toChar() + "suffix")
+            assertNull("Raw JSON control character $value", PairingQrParser.parse(invalid))
+        }
+        val escapedSlashes = payload().replace("https://", "https:\\/\\/")
+        assertNotNull(PairingQrParser.parse(escapedSlashes))
+    }
+
     @Test fun rejectsHttpAndUnsafeHttpsOrigins() {
         listOf("http://3.65.234.184:8443", "https://user:secret@example.org", "https://example.org/api",
             "https://example.org?code=secret", "https://example.org#fragment", "https://example.org:0",

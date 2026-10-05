@@ -10,10 +10,10 @@ class PairingQrPayload(val url: String, val code: String) {
 
 /** Android JSONObject is lenient, so require strict flat JSON syntax before decoding values. */
 internal object PairingQrShape {
-    private const val stringToken = "\"(?:[^\"\\\\\u0000-\u001F]|\\\\(?:[\"\\\\/bfnrt]|u[0-9A-Fa-f]{4}))*\""
+    private const val stringToken = "\"(?:[^\"\\\\\\x00-\\x1F]|\\\\(?:[\"\\\\/bfnrt]|u[0-9A-Fa-f]{4}))*\""
     private const val scalarToken = "(?:$stringToken|-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?|true|false|null)"
     private const val fieldToken = "$stringToken[ \\t\\r\\n]*:[ \\t\\r\\n]*$scalarToken"
-    private val objectPattern = Regex("\\A[ \\t\\r\\n]*\\{[ \\t\\r\\n]*$fieldToken(?:[ \\t\\r\\n]*,[ \\t\\r\\n]*$fieldToken)*[ \\t\\r\\n]*}[ \\t\\r\\n]*\\z")
+    private val objectPattern = Regex("\\A[ \\t\\r\\n]*\\{[ \\t\\r\\n]*$fieldToken(?:[ \\t\\r\\n]*,[ \\t\\r\\n]*$fieldToken)*[ \\t\\r\\n]*\\}[ \\t\\r\\n]*\\z")
     val fields = Regex("($stringToken)[ \\t\\r\\n]*:[ \\t\\r\\n]*($scalarToken)")
     fun valid(raw: String) = raw.length in 1..4096 && objectPattern.matches(raw)
 }
