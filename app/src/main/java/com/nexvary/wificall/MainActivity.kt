@@ -55,6 +55,7 @@ class MainActivity : ComponentActivity() {
         }
         super.onCreate(savedInstanceState)
         enableEdgeToEdge(statusBarStyle = SystemBarStyle.dark(0xFF071018.toInt()), navigationBarStyle = SystemBarStyle.dark(0xFF071018.toInt()))
+        if (Build.VERSION.SDK_INT >= 29) window.isNavigationBarContrastEnforced = false
         setContent {
             NexvaryTheme {
                 val context = LocalContext.current

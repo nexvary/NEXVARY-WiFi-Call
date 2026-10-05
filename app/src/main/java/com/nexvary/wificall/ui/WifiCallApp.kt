@@ -8,6 +8,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -60,7 +61,7 @@ import com.nexvary.wificall.platform.PhoneAsSimCapability
                 selected = page == destination || (page !in tabs && returnPage == destination),
                 onClick = { page = destination; returnPage = AppPage.HOME },
                 icon = { Icon(destination.icon(), null, Modifier.size(24.dp)) },
-                label = { Text(stringResource(if (destination == AppPage.SETTINGS) R.string.more else destination.title()), maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                label = { Text(stringResource(if (destination == AppPage.SETTINGS) R.string.more else destination.title()), style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis) }
             ) }
         } }
     ) { padding -> key(page) { Page(Modifier.padding(padding)) {
@@ -202,7 +203,7 @@ private fun AppPage.icon(): ImageVector = when (this) { AppPage.HOME -> Icons.De
 }
 @Composable private fun Metric(title: Int, value: String) { Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) { Text(stringResource(title), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant); Text(value, style = MaterialTheme.typography.titleMedium) } } }
 @Composable private fun InfoCard(text: String) { Card(Modifier.fillMaxWidth()) { Text(text, Modifier.padding(16.dp), style = MaterialTheme.typography.bodyLarge) } }
-@Composable private fun Action(title: Int, icon: ImageVector, click: () -> Unit) { OutlinedCard(onClick = click, modifier = Modifier.fillMaxWidth()) { Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) { Icon(icon, null, Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary); Text(stringResource(title), style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f)); Icon(Icons.Default.ChevronRight, null, Modifier.size(20.dp)) } } }
+@Composable private fun Action(title: Int, icon: ImageVector, click: () -> Unit) { OutlinedCard(onClick = click, modifier = Modifier.fillMaxWidth()) { Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) { Icon(icon, null, Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary); Text(stringResource(title), style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f)); Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, Modifier.size(20.dp)) } } }
 @Composable private fun LanguagePicker(language: String, change: (String) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     val languages = linkedMapOf("" to stringResource(R.string.follow_system), "ar" to "العربية", "en" to "English", "tr" to "Türkçe", "es" to "Español", "de" to "Deutsch", "it" to "Italiano", "fr" to "Français")

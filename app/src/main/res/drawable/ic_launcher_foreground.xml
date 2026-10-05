@@ -1,1 +1,9 @@
-<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108"><path android:fillColor="#00D4FF" android:pathData="M22,31 C40,13 68,13 86,31 L78,39 C64,25 44,25 30,39 Z"/><path android:fillColor="#00D4FF" android:pathData="M33,43 C45,31 63,31 75,43 L67,51 C60,44 48,44 41,51 Z"/><path android:fillColor="#00D4FF" android:pathData="M47,57 C51,53 57,53 61,57 L54,65 Z"/><path android:fillColor="#00D4FF" android:pathData="M29,57 C34,73 45,84 61,89 C67,91 75,84 79,78 L68,68 L60,75 C51,72 44,65 41,56 L48,48 L38,38 C32,43 27,51 29,57 Z"/></vector>
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+    <!-- Adaptive foreground safe zone: scale preserves both Wi-Fi arcs and handset under masks. -->
+    <group android:pivotX="54" android:pivotY="54" android:scaleX="0.75" android:scaleY="0.75">
+        <path android:fillColor="#00D4FF" android:pathData="M28,34 Q54,10 80,34 L74,40 Q54,21 34,40 Z" />
+        <path android:fillColor="#00D4FF" android:pathData="M38,44 Q54,29 70,44 L64,50 Q54,40 44,50 Z" />
+        <path android:fillColor="#00D4FF" android:pathData="M49,56 Q54,51 59,56 L54,62 Z" />
+        <path android:fillColor="#00D4FF" android:pathData="M34,52 L43,61 L39,66 C43,72 49,78 56,81 L61,76 L71,85 C68,90 65,92 60,90 C43,85 28,70 26,57 C26,52 30,48 34,52 Z" />
+    </group>
+</vector>

@@ -4,6 +4,7 @@ import android.app.LocaleManager
 import android.os.Build
 import android.graphics.Bitmap
 import android.content.res.Configuration
+import android.content.res.Resources
 import android.os.LocaleList
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -83,7 +84,11 @@ class LanguagePersistenceTest {
         val selectedName = options.first { it.first == language }.second
         compose.onNodeWithText(selectedName).performScrollTo().performClick()
         compose.onNodeWithText(translated(language, R.string.follow_system)).performClick()
-        val deviceLanguage = base.resources.configuration.locales[0].language
+        // targetContext resources can still carry the previous per-app French locale
+        // while the framework recreates the activity. Read the independent system locale.
+        val deviceLanguage = if (Build.VERSION.SDK_INT >= 33) {
+            base.getSystemService(LocaleManager::class.java).systemLocales[0].language
+        } else Resources.getSystem().configuration.locales[0].language
         compose.waitUntil(timeoutMillis = 10_000) {
             compose.onAllNodesWithText(translated(deviceLanguage, R.string.more)).fetchSemanticsNodes().isNotEmpty()
         }
