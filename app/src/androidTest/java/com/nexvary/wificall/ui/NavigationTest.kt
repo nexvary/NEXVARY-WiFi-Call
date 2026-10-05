@@ -4,6 +4,10 @@ import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.os.LocaleList
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -71,17 +75,22 @@ class NavigationTest(private val language: String) {
         }
         compose.onNodeWithText(text(R.string.ready_title)).assertIsDisplayed()
         screenshot("home")
-        compose.onNodeWithText(text(R.string.start_check)).performClick()
+        compose.onNodeWithText(text(R.string.start_check)).performScrollTo().performClick()
         compose.runOnIdle { assertEquals(1, refreshes) }
-        compose.onNodeWithText(text(R.string.carrier_evidence)).performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag("diagnostics-phone-as-sim").performScrollTo().assertIsDisplayed()
         screenshot("diagnostics")
+        compose.onNodeWithTag("diagnostics-phone-as-sim").performClick()
+        compose.onNodeWithText(text(R.string.technical_evidence)).assertDoesNotExist()
+        compose.onNodeWithTag("lab-mode-switch").performScrollTo().performClick()
+        compose.onNodeWithText(text(R.string.technical_evidence)).performScrollTo().assertIsDisplayed()
+        screenshot("diagnostics-lab")
         compose.onNodeWithContentDescription(text(R.string.back)).performClick()
         compose.onNodeWithText(text(R.string.ready_title)).assertIsDisplayed()
-        compose.onNodeWithText(text(R.string.sims)).performClick()
+        compose.onNodeWithTag("nav-sims").performClick()
         compose.onNodeWithText(text(R.string.allow_sim)).performClick()
         compose.runOnIdle { assertEquals(1, permissions) }
         screenshot("sims")
-        compose.onNodeWithText(text(R.string.more)).performClick()
+        compose.onNodeWithTag("nav-settings").performClick()
         compose.onNodeWithText(text(R.string.about_developer)).performScrollTo().performClick()
         compose.onNodeWithText(text(R.string.about_description)).assertIsDisplayed()
         screenshot("about")
@@ -91,6 +100,34 @@ class NavigationTest(private val language: String) {
         compose.onNodeWithContentDescription(text(R.string.back)).performClick()
         compose.onNodeWithText(text(R.string.language)).performScrollTo().assertIsDisplayed()
         screenshot("settings")
+    }
+
+    @Test fun dualSimSelectorChoosesBothActualSubscriptionIds() {
+        val base = InstrumentationRegistry.getInstrumentation().targetContext
+        val locale = Locale.forLanguageTag(language)
+        val context = base.createConfigurationContext(Configuration(base.resources.configuration).apply {
+            setLocales(LocaleList(locale)); setLayoutDirection(locale)
+        })
+        var chosen: Int? = null
+        val sims = listOf(
+            SubscriptionRef(11, 0, "Carrier A", null, null, null),
+            SubscriptionRef(29, 1, "Carrier B", null, null, null)
+        )
+        compose.setContent {
+            CompositionLocalProvider(LocalContext provides context,
+                LocalLayoutDirection provides if (language == "ar") LayoutDirection.Rtl else LayoutDirection.Ltr) {
+                var selected by remember { mutableStateOf<Int?>(null) }
+                NexvaryTheme {
+                    WifiCallApp(initial = DemoState.value.copy(subscriptions = sims, selectedSubscriptionId = selected),
+                        onSelectSubscription = { chosen = it; selected = it })
+                }
+            }
+        }
+        compose.onNodeWithTag("nav-sims").performClick()
+        compose.onNodeWithTag("sim-29").performScrollTo().performClick()
+        compose.runOnIdle { assertEquals(29, chosen) }
+        compose.onNodeWithTag("sim-11").performScrollTo().performClick()
+        compose.runOnIdle { assertEquals(11, chosen) }
     }
 
     companion object {

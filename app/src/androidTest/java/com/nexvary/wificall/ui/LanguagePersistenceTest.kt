@@ -1,5 +1,7 @@
 package com.nexvary.wificall.ui
 
+import android.app.LocaleManager
+import android.os.Build
 import android.graphics.Bitmap
 import android.content.res.Configuration
 import android.os.LocaleList
@@ -22,6 +24,11 @@ class LanguagePersistenceTest {
 
     @After fun resetLanguage() {
         base.getSharedPreferences("preferences", 0).edit().remove("language").commit()
+        if (Build.VERSION.SDK_INT >= 33) {
+            InstrumentationRegistry.getInstrumentation().runOnMainSync {
+                base.getSystemService(LocaleManager::class.java).applicationLocales = LocaleList.getEmptyLocaleList()
+            }
+        }
     }
 
     @Test fun languageSwitchSurvivesActivityRecreation() {
@@ -32,7 +39,7 @@ class LanguagePersistenceTest {
         var language = base.getSharedPreferences("preferences", 0).getString("language", "").orEmpty().ifEmpty {
             base.resources.configuration.locales[0].language
         }
-        compose.onNodeWithText(translated(language, R.string.more)).performClick()
+        compose.onNodeWithTag("nav-settings").performClick()
         val options = listOf("ar" to "العربية", "en" to "English", "tr" to "Türkçe", "es" to "Español", "de" to "Deutsch", "it" to "Italiano", "fr" to "Français")
         options.forEach { (code, name) ->
             val current = compose.activity.getSharedPreferences("preferences", 0).getString("language", "").orEmpty()
@@ -49,9 +56,12 @@ class LanguagePersistenceTest {
                 if (code == "ar") android.view.View.LAYOUT_DIRECTION_RTL else android.view.View.LAYOUT_DIRECTION_LTR,
                 compose.activity.resources.configuration.layoutDirection
             )
+            if (Build.VERSION.SDK_INT >= 33) {
+                assertEquals(code, base.getSystemService(LocaleManager::class.java).applicationLocales.toLanguageTags())
+            }
             language = code
             if (code == "ar" || code == "en") {
-                compose.onNodeWithText(translated(code, R.string.home)).performClick()
+                compose.onNodeWithTag("nav-home").performClick()
                 compose.waitForIdle()
                 Thread.sleep(300)
                 val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
@@ -67,7 +77,7 @@ class LanguagePersistenceTest {
                 // executeShellCommand executes one program, not shell && operators.
                 shell("mkdir -p /sdcard/Download/NEXVARY-WiFi-Call-screenshots")
                 shell("cp ${file.absolutePath} /sdcard/Download/NEXVARY-WiFi-Call-screenshots/$code-activity-home.png")
-                compose.onNodeWithText(translated(code, R.string.more)).performClick()
+                compose.onNodeWithTag("nav-settings").performClick()
             }
         }
         val selectedName = options.first { it.first == language }.second
@@ -80,5 +90,8 @@ class LanguagePersistenceTest {
         compose.activityRule.scenario.recreate()
         compose.onNodeWithText(translated(deviceLanguage, R.string.more)).assertIsDisplayed()
         assertEquals("", compose.activity.getSharedPreferences("preferences", 0).getString("language", ""))
+        if (Build.VERSION.SDK_INT >= 33) {
+            assertEquals("", base.getSystemService(LocaleManager::class.java).applicationLocales.toLanguageTags())
+        }
     }
 }

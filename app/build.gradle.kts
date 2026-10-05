@@ -14,8 +14,8 @@ android {
         applicationId = "com.nexvary.wificall"
         minSdk = 26
         targetSdk = 35
-        versionCode = 3
-        versionName = "0.2.0-alpha02"
+        versionCode = 4
+        versionName = "0.3.0-alpha01"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     buildFeatures { compose = true; buildConfig = true }
@@ -29,7 +29,7 @@ dependencies {
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.foundation:foundation")
     implementation("androidx.compose.material3:material3")
-    implementation("androidx.compose.material:material-icons-core")
+    implementation("androidx.compose.material:material-icons-extended")
     androidTestImplementation(composeBom)
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
     androidTestImplementation("androidx.test:runner:1.6.2")

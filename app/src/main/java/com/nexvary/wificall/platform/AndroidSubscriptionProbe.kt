@@ -12,6 +12,9 @@ class AndroidSubscriptionProbe(private val context: Context) {
     private val sm = context.getSystemService(SubscriptionManager::class.java)
 
     fun active(): SubscriptionResult {
+        if (!context.packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY_SUBSCRIPTION) || sm == null) {
+            return SubscriptionResult.Unavailable
+        }
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_PHONE_STATE) != PackageManager.PERMISSION_GRANTED) {
             return SubscriptionResult.PermissionRequired
         }

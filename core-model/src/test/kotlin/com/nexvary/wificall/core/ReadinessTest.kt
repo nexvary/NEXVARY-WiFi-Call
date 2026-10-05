@@ -21,4 +21,12 @@ class ReadinessTest {
         val r=ReadinessEngine.evaluate(ReadinessInput(good,true,false,false,false,false,false))
         assertEquals(ReadinessState.UNKNOWN,r.state)
     }
+    @Test fun hiddenSubscriptionsAreNotReportedAsMissingSim() {
+        val denied = ReadinessEngine.evaluate(ReadinessInput(good,false,true,false,false,false,false))
+        assertEquals(ReadinessState.RESTRICTED, denied.state)
+        assertEquals(setOf(Blocker.PLATFORM_RESTRICTED), denied.blockers)
+        val noSelection = ReadinessEngine.evaluate(ReadinessInput(good,false,false,false,false,false,false))
+        assertEquals(ReadinessState.UNKNOWN, noSelection.state)
+        assertEquals(setOf(Blocker.SIM_NOT_SELECTED), noSelection.blockers)
+    }
 }

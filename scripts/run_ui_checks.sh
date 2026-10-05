@@ -11,7 +11,24 @@ collect_screenshots() {
         echo "UI screenshots were not collected" >&2
         test_status=1
     fi
+    if [ "$test_status" -eq 0 ]; then
+        for locale in ar en tr es de it fr; do
+            for page in home diagnostics diagnostics-lab sims about settings; do
+                if [ ! -s "ui-screenshots/$locale-$page.png" ]; then
+                    echo "Missing screenshot: $locale-$page.png" >&2
+                    test_status=1
+                fi
+            done
+        done
+        for name in ar-activity-home en-activity-home installed-launcher-icon activity-landscape activity-portrait; do
+            if [ ! -s "ui-screenshots/$name.png" ]; then
+                echo "Missing screenshot: $name.png" >&2
+                test_status=1
+            fi
+        done
+    fi
     exit "$test_status"
 }
 trap collect_screenshots EXIT
+adb shell rm -rf /sdcard/Download/NEXVARY-WiFi-Call-screenshots
 gradle :app:connectedDebugAndroidTest --stacktrace

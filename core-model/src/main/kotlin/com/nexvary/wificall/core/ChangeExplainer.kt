@@ -16,10 +16,20 @@ object ChangeExplainer {
         if(!before.vpn&&after.vpn) r+=ChangeReason.VPN_ENABLED
         if(before.vpn&&!after.vpn) r+=ChangeReason.VPN_DISABLED
         if(before.dnsServerCount!=after.dnsServerCount) r+=ChangeReason.DNS_CHANGED
-        if(beforeQuality!=null&&afterQuality!=null) {
-            if(afterQuality.ordinal>beforeQuality.ordinal) r+=ChangeReason.QUALITY_DEGRADED
-            if(afterQuality.ordinal<beforeQuality.ordinal) r+=ChangeReason.QUALITY_IMPROVED
+        val beforeRank = qualityRank(beforeQuality)
+        val afterRank = qualityRank(afterQuality)
+        if(beforeRank!=null&&afterRank!=null) {
+            if(afterRank<beforeRank) r+=ChangeReason.QUALITY_DEGRADED
+            if(afterRank>beforeRank) r+=ChangeReason.QUALITY_IMPROVED
         }
         return ChangeExplanation(r)
+    }
+    // Missing measurements are not a better or worse measurement.
+    private fun qualityRank(grade: QualityGrade?): Int? = when(grade) {
+        QualityGrade.EXCELLENT -> 4
+        QualityGrade.GOOD -> 3
+        QualityGrade.FAIR -> 2
+        QualityGrade.POOR -> 1
+        QualityGrade.UNKNOWN, null -> null
     }
 }

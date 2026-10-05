@@ -37,6 +37,8 @@ object ReadinessEngine {
         if (!i.network.wifi) return ReadinessResult(ReadinessState.DEGRADED, blockers=setOf(Blocker.NO_WIFI))
         if (i.network.captivePortal) return ReadinessResult(ReadinessState.DEGRADED, blockers=setOf(Blocker.CAPTIVE_PORTAL))
         if (!i.network.internetValidated) return ReadinessResult(ReadinessState.DEGRADED, blockers=setOf(Blocker.INTERNET_NOT_VALIDATED))
+        // A subscription hidden by denied permission is not evidence that the phone has no SIM.
+        if (!i.simSelected && i.platformRestricted) return ReadinessResult(ReadinessState.RESTRICTED, blockers=setOf(Blocker.PLATFORM_RESTRICTED))
         if (!i.simSelected) return ReadinessResult(ReadinessState.UNKNOWN, blockers=setOf(Blocker.SIM_NOT_SELECTED))
         if (i.nativeVerified) return ReadinessResult(ReadinessState.READY_NATIVE, CallPath.NATIVE_CARRIER)
         if (i.gatewayHealthy) return ReadinessResult(ReadinessState.READY_GATEWAY, CallPath.EXTERNAL_GATEWAY)
