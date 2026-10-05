@@ -1,36 +1,37 @@
 package com.nexvary.wificall.ui
 
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
+import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.nexvary.wificall.BuildConfig
+import com.nexvary.wificall.R
 
-private const val FG_FACEBOOK="https://www.facebook.com/share/1T7r3WpH8Y/"
-private const val ALAA_FACEBOOK="https://www.facebook.com/share/1EKVAyZZ2C/"
-private const val FG_WEBSITE="https://fgmachines.org"
-private const val FG_EMAIL="info@fgmachines.org"
-
-@Composable fun AboutDeveloperScreen(){
- val context=LocalContext.current
- fun open(url:String){context.startActivity(Intent(Intent.ACTION_VIEW,Uri.parse(url)))}
- Column(Modifier.fillMaxSize().padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
-  Text("عن المطور",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold)
-  ElevatedCard(Modifier.fillMaxWidth()){Column(Modifier.padding(18.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
-   Text("FG MACHINES",style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold)
-   Text("للتجارة والتسويق")
-   Text("بسم الله الرحمن الرحيم")
-   Text("تم تطوير البرنامج بواسطة FG Machines. المطور الرئيسي: علاء محمد. وهذا البرنامج مجاني بالكامل لوجه الله.")
-  }}
-  Button({open(FG_WEBSITE)},Modifier.fillMaxWidth()){Text("الموقع الرسمي · fgmachines.org")}
-  OutlinedButton({context.startActivity(Intent(Intent.ACTION_SENDTO,Uri.parse("mailto:"+FG_EMAIL)))},Modifier.fillMaxWidth()){Text("البريد الإلكتروني · info@fgmachines.org")}
-  Text("روابط المطور",style=MaterialTheme.typography.titleMedium,fontWeight=FontWeight.Bold)
-  Text("الحساب الشخصي والصفحة التجارية")
-  OutlinedButton({open(ALAA_FACEBOOK)},Modifier.fillMaxWidth()){Text("رابط الحساب الشخصي")}
-  OutlinedButton({open(FG_FACEBOOK)},Modifier.fillMaxWidth()){Text("رابط الصفحة التجارية")}
- }
+@Composable fun AboutDeveloperScreen() {
+    val context = LocalContext.current
+    val linkError = stringResource(R.string.open_link_failed)
+    fun open(url: String, action: String = Intent.ACTION_VIEW) {
+        try { context.startActivity(Intent(action, Uri.parse(url))) }
+        catch (_: ActivityNotFoundException) { Toast.makeText(context, linkError, Toast.LENGTH_LONG).show() }
+        catch (_: SecurityException) { Toast.makeText(context, linkError, Toast.LENGTH_LONG).show() }
+    }
+    OutlinedCard(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("FG MACHINES", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.about_description))
+            Text(BuildConfig.VERSION_NAME, style = MaterialTheme.typography.labelLarge)
+        }
+    }
+    Button(onClick = { open("https://fgmachines.org") }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.official_website)) }
+    OutlinedButton(onClick = { open("mailto:info@fgmachines.org", Intent.ACTION_SENDTO) }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.email)) }
+    OutlinedButton(onClick = { open("https://www.facebook.com/share/1EKVAyZZ2C/") }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.personal_page)) }
+    OutlinedButton(onClick = { open("https://www.facebook.com/share/1T7r3WpH8Y/") }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.business_page)) }
 }
