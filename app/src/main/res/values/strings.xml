@@ -151,4 +151,9 @@
     <string name="gateway_error_disconnect">Gateway could not be disconnected. Try again when it is reachable.</string>
     <string name="gateway_error_storage">Gateway credentials could not be saved or loaded securely. Pair again.</string>
     <string name="gateway_invalid_code">Enter the valid code provided by the gateway.</string>
+    <string name="gateway_scan_qr">Scan pairing QR code</string>
+    <string name="gateway_qr_ready">Server address and pairing code loaded. Review the address, then tap Pair.</string>
+    <string name="gateway_qr_invalid">This QR code is not a valid NEXVARY pairing code.</string>
+    <string name="gateway_qr_unavailable">QR scanning is unavailable. You can enter the address and code manually.</string>
+    <string name="gateway_qr_scanning">Opening QR scanner…</string>
 </resources>

@@ -151,4 +151,9 @@
     <string name="gateway_error_disconnect">Ağ geçidi bağlantısı kesilemedi. Erişilebilir olduğunda yeniden deneyin.</string>
     <string name="gateway_error_storage">Ağ geçidi kimlik bilgileri güvenli şekilde kaydedilemedi veya yüklenemedi. Yeniden eşleştirin.</string>
     <string name="gateway_invalid_code">Ağ geçidinin verdiği geçerli kodu girin.</string>
+    <string name="gateway_scan_qr">Eşleştirme QR kodunu tara</string>
+    <string name="gateway_qr_ready">Sunucu adresi ve eşleştirme kodu yüklendi. Adresi kontrol edin, ardından Eşleştir düğmesine dokunun.</string>
+    <string name="gateway_qr_invalid">Bu QR kodu geçerli bir NEXVARY eşleştirme kodu değil.</string>
+    <string name="gateway_qr_unavailable">QR kodu tarama kullanılamıyor. Adresi ve kodu elle girebilirsiniz.</string>
+    <string name="gateway_qr_scanning">QR kodu tarayıcısı açılıyor…</string>
 </resources>

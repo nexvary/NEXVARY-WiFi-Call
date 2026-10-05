@@ -151,4 +151,9 @@
     <string name="gateway_error_disconnect">Impossible de déconnecter la passerelle. Réessayez lorsqu’elle est accessible.</string>
     <string name="gateway_error_storage">Les identifiants de la passerelle n’ont pas pu être enregistrés ou chargés en toute sécurité. Recommencez l’association.</string>
     <string name="gateway_invalid_code">Saisissez le code valide fourni par la passerelle.</string>
+    <string name="gateway_scan_qr">Scanner le code QR d’association</string>
+    <string name="gateway_qr_ready">L’adresse du serveur et le code d’association ont été chargés. Vérifiez l’adresse, puis appuyez sur Associer.</string>
+    <string name="gateway_qr_invalid">Ce code QR n’est pas un code d’association NEXVARY valide.</string>
+    <string name="gateway_qr_unavailable">Le scan de codes QR est indisponible. Vous pouvez saisir l’adresse et le code manuellement.</string>
+    <string name="gateway_qr_scanning">Ouverture du scanner QR…</string>
 </resources>

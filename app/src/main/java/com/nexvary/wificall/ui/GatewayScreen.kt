@@ -10,6 +10,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.PrivacyTip
+import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -28,7 +29,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /** Pairing and reporting are explicit user actions, unrelated to carrier authentication. */
-@Composable fun GatewayScreen(state: DashboardState) {
+@Composable fun GatewayScreen(state: DashboardState, scanner: PairingQrScanner = GooglePairingQrScanner) {
+    val scanContext = LocalContext.current
     val context = LocalContext.current.applicationContext
     val preferences = remember(context) { GatewayPreferences(context) }
     val client = remember { GatewayClient() }
@@ -53,6 +55,28 @@ import kotlinx.coroutines.withContext
     }
 
     fun showMessage(resource: Int, failure: Boolean = false) { message = resource; error = failure }
+    fun scan() {
+        if (loading || busyAction != null || credentials != null) return
+        busyAction = R.string.gateway_qr_scanning
+        message = null
+        scope.launch {
+            try {
+                when (val result = scanner.scan(scanContext)) {
+                    is PairingScanResult.Scanned -> {
+                        val candidate = PairingQrParser.parse(result.raw)
+                        if (candidate == null) showMessage(R.string.gateway_qr_invalid, true)
+                        else {
+                            url = candidate.url
+                            code = candidate.code
+                            showMessage(R.string.gateway_qr_ready)
+                        }
+                    }
+                    PairingScanResult.Unavailable -> showMessage(R.string.gateway_qr_unavailable, true)
+                    PairingScanResult.Cancelled -> Unit
+                }
+            } finally { busyAction = null }
+        }
+    }
     fun pair() {
         if (loading || busyAction != null) return
         if (GatewayAddress.normalize(url) == null) { showMessage(R.string.gateway_error_url, true); return }
@@ -153,6 +177,12 @@ import kotlinx.coroutines.withContext
         } }
         if (credentials == null) {
             Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedButton(onClick = ::scan, enabled = !busy,
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("gateway-scan")) {
+                    Icon(Icons.Default.QrCodeScanner, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text(stringResource(R.string.gateway_scan_qr))
+                }
                 OutlinedTextField(url, onValueChange = { url = it.take(2048) }, enabled = !busy,
                     label = { Text(stringResource(R.string.gateway_url)) }, singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),

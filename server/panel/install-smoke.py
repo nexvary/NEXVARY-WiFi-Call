@@ -5,6 +5,7 @@ Never run on the user's server. Passwords, cookies, hashes and installer output 
 in memory and are not printed or uploaded as artifacts.
 """
 import errno
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -156,6 +157,8 @@ def main():
     try:
         install_interactively(password)
         require((APP / 'phone_store.py').is_file(), 'Installed phone-store dependency is missing.')
+        require((APP / 'qrcodegen.js').is_file() and (APP / 'THIRD-PARTY.md').is_file(),
+                'Installed local QR asset or license attribution is missing.')
         for marker in ('.nexvary-panel-owned', '.nexvary-panel-unit-sha256'):
             marker_stat = command(['sudo', '-n', 'stat', '-c', '%a:%U', str(APP / marker)])
             require(marker_stat.stdout.decode().strip() == '600:root',
@@ -176,6 +179,11 @@ def main():
                 if time.monotonic() >= deadline:
                     raise SmokeFailure('Panel health endpoint did not become available.')
                 time.sleep(0.2)
+        with urllib.request.urlopen(BASE + '/assets/qrcodegen.js', timeout=3) as asset:
+            require(asset.status == 200 and asset.headers.get_content_type() == 'text/javascript',
+                    'Local QR script route or content type is incorrect.')
+            require(hashlib.sha256(asset.read()).digest() == hashlib.sha256((ROOT / 'server/panel/qrcodegen.js').read_bytes()).digest(),
+                    'Served QR script differs from the pinned local asset.')
         require(status == 200 and health == {'panel': 'ok', 'gateway_verified': False},
                 'Health endpoint must identify the panel without claiming gateway verification.')
         listeners = command(['ss', '-ltnH', 'sport = :8787'])
@@ -220,6 +228,9 @@ def main():
                     'Updated ownership markers must be root-private, including on hosts with default ACLs.')
         require(command(['systemctl', 'is-active', '--quiet', SERVICE]).returncode == 0,
                 'Updated panel service is not active.')
+        with urllib.request.urlopen(BASE + '/assets/qrcodegen.js', timeout=3) as asset:
+            require(asset.status == 200 and hashlib.sha256(asset.read()).digest() == hashlib.sha256((ROOT / 'server/panel/qrcodegen.js').read_bytes()).digest(),
+                    'Owned upgrade did not preserve the pinned local QR asset.')
         require(state_digest() == before, 'Upgrade changed the original password state.')
         _, login_after, cookie_after = request('/api/login', body={'password': password})
         require(login_after.get('ok') is True and cookie_after is not None,

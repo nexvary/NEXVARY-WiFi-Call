@@ -50,7 +50,7 @@ if [[ "$action" == --plan || "$action" == --help ]]; then
 Install plan (no changes performed):
   Require Ubuntu 24.04, Python 3 and systemd already installed.
   Refuse existing app/state/unit/user; preserve all other services and firewall.
-  Copy app.py, phone_store.py and index.html into /opt/nexvary-wifi-panel.
+  Copy app.py, phone_store.py, index.html and local QR assets into /opt/nexvary-wifi-panel.
   Prompt interactively for a password; keep its hash in private persistent state.
   Create dedicated unprivileged nexvary-wifi-panel user and hardened systemd unit.
   Enable/start nexvary-wifi-panel.service on 127.0.0.1:8787 only.
@@ -73,7 +73,7 @@ for executable in systemctl useradd getent install mktemp sha256sum; do
   command -v "$executable" >/dev/null || { printf 'Missing required tool: %s. Install separately.\n' "$executable" >&2; exit 1; }
 done
 [[ -d /run/systemd/system ]] || { printf 'systemd is not running on this host.\n' >&2; exit 1; }
-[[ -f "$base_dir/panel/app.py" && -f "$base_dir/panel/phone_store.py" && -f "$base_dir/panel/index.html" ]] || { printf 'Panel source files are missing.\n' >&2; exit 1; }
+[[ -f "$base_dir/panel/app.py" && -f "$base_dir/panel/phone_store.py" && -f "$base_dir/panel/index.html" && -f "$base_dir/panel/qrcodegen.js" && -f "$base_dir/panel/THIRD-PARTY.md" ]] || { printf 'Panel source files are missing.\n' >&2; exit 1; }
 for existing in "$app_dir" "$state_dir" "$unit_file"; do
   [[ ! -e "$existing" && ! -L "$existing" ]] || { printf 'Refusing existing installation path: %s\n' "$existing" >&2; exit 1; }
 done
@@ -95,6 +95,8 @@ trap 'printf "Installation interrupted. Private staging paths, if still present:
 install -m 644 "$base_dir/panel/app.py" "$stage_app/app.py"
 install -m 644 "$base_dir/panel/phone_store.py" "$stage_app/phone_store.py"
 install -m 644 "$base_dir/panel/index.html" "$stage_app/index.html"
+install -m 644 "$base_dir/panel/qrcodegen.js" "$stage_app/qrcodegen.js"
+install -m 644 "$base_dir/panel/THIRD-PARTY.md" "$stage_app/THIRD-PARTY.md"
 /usr/bin/python3 "$stage_app/app.py" --init-password --state-dir "$stage_state"
 useradd --system --user-group --home-dir "$state_dir" --no-create-home --shell /usr/sbin/nologin "$service_user"
 chown -R "$service_user:$service_user" "$stage_state"

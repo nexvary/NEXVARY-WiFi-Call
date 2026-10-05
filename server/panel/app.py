@@ -113,6 +113,9 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply(403, {'error': 'host'})
         if self.path == '/':
             return self.reply(200, Path(__file__).with_name('index.html').read_bytes(), 'text/html; charset=utf-8')
+        if self.path == '/assets/qrcodegen.js':
+            # Fixed allowlisted filename: never resolve an arbitrary URL as a filesystem path.
+            return self.reply(200, Path(__file__).with_name('qrcodegen.js').read_bytes(), 'text/javascript; charset=utf-8')
         if self.path == '/healthz':
             return self.reply(200, {'panel': 'ok', 'gateway_verified': False})
         if self.path == '/api/admin/devices':

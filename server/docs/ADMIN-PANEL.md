@@ -17,7 +17,7 @@ Use an interactive SSH terminal. Installation prompts for the panel password wit
 The installer:
 
 - Refuses an existing application path, state path, systemd unit, user/group or occupied localhost port. For an existing owned installation, use the separate verified update procedure below.
-- Copies `server/panel/app.py`, `phone_store.py` and `index.html` to `/opt/nexvary-wifi-panel`.
+- Copies `server/panel/app.py`, `phone_store.py`, `index.html`, `qrcodegen.js` and its MIT attribution to `/opt/nexvary-wifi-panel`.
 - Creates an isolated `nexvary-wifi-panel` system user with no login shell; it is not placed in sudo or Docker groups.
 - Keeps persistent state in `/var/lib/nexvary-wifi-panel`, owned by that user and inaccessible to other users.
 - Starts only `nexvary-wifi-panel.service` on `127.0.0.1:8787`.
@@ -79,13 +79,13 @@ The smoke script refuses local execution and existing installation/user/state pa
 
 ## Optional HTTPS phone-report endpoint
 
-For a remote Android phone, configure a dedicated HTTPS DNS origin and reverse proxy separately, preserving existing web services. The initial install can bind its allowlisted public origin:
+For a remote Android phone, configure a dedicated HTTPS origin and reverse proxy separately, preserving existing web services. The initial install can bind its allowlisted public origin:
 
 ```bash
 sudo bash server/install-panel.sh --install --public-origin https://panel.example.org
 ```
 
-Only an ASCII HTTPS DNS origin with an optional valid port is accepted; paths, credentials, query strings and fragments are rejected. The Python service still binds `127.0.0.1:8787`. With a public origin configured, use the HTTPS origin for browser administration: secure cookies will not authenticate plain HTTP tunnel requests. This option configures origin validation and secure cookies; it does not install a proxy, issue a certificate, alter DNS, open firewall ports or verify the remote endpoint. Review the proxy configuration supplied with this project before activating it on the real host.
+Only an ASCII HTTPS DNS-name or IPv4 origin with an optional valid port is accepted; paths, credentials, query strings and fragments are rejected. The Python service still binds `127.0.0.1:8787`. With a public origin configured, use the HTTPS origin for browser administration: secure cookies will not authenticate plain HTTP tunnel requests. This option configures origin validation and secure cookies; it does not install a proxy, issue a certificate, alter DNS, open firewall ports or verify the remote endpoint. Review the proxy configuration supplied with this project before activating it on the real host.
 
 Pairing codes expire after ten minutes and are single-use. Only credential hashes and a strict report schema are stored in private SQLite state; long-term SIM secrets, SIM identities, phone numbers, carrier identifiers, gateway verification flags and device-supplied timestamps are rejected. Unpairing removes the device's authorization. A report of Android carrier privilege is a capability preflight, not live AKA success.
 
@@ -99,6 +99,14 @@ sudo bash server/update-panel.sh --update
 sudo bash server/update-panel.sh --update --public-origin https://panel.example.org
 ```
 
-The updater checks the root-owned application marker, unchanged systemd unit checksum, actual unit path and absence of symlinked installation paths. It stages `app.py`, `phone_store.py` and `index.html`, archives the old code/unit, then restarts only this panel. A failed restart or health check restores the previous code/unit and previous running state. Password hashes and the phone SQLite database remain in `/var/lib/nexvary-wifi-panel`; they are never copied into the code archive or rewritten by the update script. Existing HTTPS origin settings are preserved when the optional origin argument is omitted.
+The updater checks the root-owned application marker, unchanged systemd unit checksum, actual unit path and absence of symlinked installation paths. It stages `app.py`, `phone_store.py`, `index.html`, `qrcodegen.js` and its MIT attribution, archives the old code/unit, then restarts only this panel. A failed restart or health check restores the previous code/unit and previous running state. Password hashes and the phone SQLite database remain in `/var/lib/nexvary-wifi-panel`; they are never copied into the code archive or rewritten by the update script. Existing HTTPS origin settings are preserved when the optional origin argument is omitted.
 
 Browser sessions live only in memory, so sign in again with the same password after updating. Paired phone credentials and sanitized reports remain persistent. Old code/unit archives remain root-private for review and recovery. The updater refuses unfamiliar service commands or ownership changes rather than replacing unrelated services.
+
+## Scan a private pairing QR code
+
+Sign in through the configured, phone-reachable HTTPS origin and choose the pairing action. The panel encodes only `{type:"nexvary-pairing",version:1,url:window.location.origin,code}` as JSON into a high-contrast local QR code. The exact origin includes a configured HTTPS port, such as `https://203.0.113.10:8443`; the phone must trust the server certificate and be able to reach that address. DNS names or IP addresses require a separately configured valid/trusted TLS endpoint. The QR code never contains the admin password, phone bearer token, SIM identity or gateway evidence.
+
+The code remains single-use and expires after ten minutes. Scan it with the Android pairing flow, or retain the manual URL/code entry. QR and displayed code clear when the code expires, on logout or when the browser session expires. A consumed code is refused by the server even if its image remains visible until expiry. On plain HTTP, including the SSH-tunnel browser URL, QR pairing is hidden and the panel explains that a phone-reachable HTTPS endpoint is required. Copy/manual display remain available; Android pairing still requires HTTPS.
+
+The QR encoder is bundled locally and served from an exact allowlisted asset route. No CDN or external QR API sees the private pairing code. See `server/panel/THIRD-PARTY.md` for the inspected MIT license, pinned official Nayuki revision, hashes and reproducible compilation. The installer/updater include the encoder and attribution without installing Node.js or downloading browser dependencies on the host.

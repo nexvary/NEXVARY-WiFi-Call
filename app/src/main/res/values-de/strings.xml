@@ -151,4 +151,9 @@
     <string name="gateway_error_disconnect">Das Gateway konnte nicht getrennt werden. Versuche es erneut, sobald es erreichbar ist.</string>
     <string name="gateway_error_storage">Die Gateway-Zugangsdaten konnten nicht sicher gespeichert oder geladen werden. Kopple es erneut.</string>
     <string name="gateway_invalid_code">Gib den gültigen Code des Gateways ein.</string>
+    <string name="gateway_scan_qr">QR-Code zur Kopplung scannen</string>
+    <string name="gateway_qr_ready">Serveradresse und Kopplungscode wurden geladen. Prüfe die Adresse und tippe dann auf Koppeln.</string>
+    <string name="gateway_qr_invalid">Dieser QR-Code ist kein gültiger NEXVARY-Kopplungscode.</string>
+    <string name="gateway_qr_unavailable">Das Scannen von QR-Codes ist nicht verfügbar. Du kannst die Adresse und den Code manuell eingeben.</string>
+    <string name="gateway_qr_scanning">QR-Scanner wird geöffnet…</string>
 </resources>

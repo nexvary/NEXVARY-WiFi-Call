@@ -151,4 +151,9 @@
     <string name="gateway_error_disconnect">Impossibile disconnettere il gateway. Riprova quando è raggiungibile.</string>
     <string name="gateway_error_storage">Impossibile salvare o caricare in modo sicuro le credenziali del gateway. Ripeti l’associazione.</string>
     <string name="gateway_invalid_code">Inserisci il codice valido fornito dal gateway.</string>
+    <string name="gateway_scan_qr">Scansiona il codice QR di associazione</string>
+    <string name="gateway_qr_ready">Indirizzo del server e codice di associazione caricati. Controlla l’indirizzo, poi tocca Associa.</string>
+    <string name="gateway_qr_invalid">Questo codice QR non è un codice di associazione NEXVARY valido.</string>
+    <string name="gateway_qr_unavailable">La scansione QR non è disponibile. Puoi inserire l’indirizzo e il codice manualmente.</string>
+    <string name="gateway_qr_scanning">Apertura dello scanner QR…</string>
 </resources>

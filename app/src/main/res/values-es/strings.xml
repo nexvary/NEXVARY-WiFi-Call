@@ -151,4 +151,9 @@
     <string name="gateway_error_disconnect">No se pudo desconectar la pasarela. Inténtalo de nuevo cuando esté disponible.</string>
     <string name="gateway_error_storage">No se pudieron guardar o cargar las credenciales de la pasarela de forma segura. Vuelve a vincularla.</string>
     <string name="gateway_invalid_code">Introduce el código válido proporcionado por la pasarela.</string>
+    <string name="gateway_scan_qr">Escanear código QR de vinculación</string>
+    <string name="gateway_qr_ready">Se han cargado la dirección del servidor y el código de vinculación. Revisa la dirección y toca Vincular.</string>
+    <string name="gateway_qr_invalid">Este código QR no es un código de vinculación válido de NEXVARY.</string>
+    <string name="gateway_qr_unavailable">El escaneo de QR no está disponible. Puedes introducir la dirección y el código manualmente.</string>
+    <string name="gateway_qr_scanning">Abriendo el escáner QR…</string>
 </resources>

@@ -73,6 +73,26 @@ class PanelHTTPTests(unittest.TestCase):
         self.assertIn("frame-ancestors 'none'", headers['Content-Security-Policy'])
         self.assertGreater(body['disk_total'], 0)
 
+    def test_only_fixed_local_qr_asset_is_served_with_security_headers(self):
+        connection = http.client.HTTPConnection('127.0.0.1', self.server.server_port, timeout=3)
+        try:
+            connection.request('GET', '/assets/qrcodegen.js', headers={'Host': self.host})
+            response = connection.getresponse()
+            self.assertEqual(200, response.status)
+            self.assertEqual('text/javascript; charset=utf-8', response.getheader('Content-Type'))
+            self.assertEqual('nosniff', response.getheader('X-Content-Type-Options'))
+            self.assertEqual('no-store', response.getheader('Cache-Control'))
+            self.assertIn("script-src 'self'", response.getheader('Content-Security-Policy'))
+            self.assertEqual(Path(__file__).with_name('qrcodegen.js').read_bytes(), response.read())
+        finally:
+            connection.close()
+        for path in ('/assets/../password.json', '/assets/%2e%2e/password.json', '/assets/qrcodegen.js?file=password.json', '/assets/phone_store.py'):
+            with self.subTest(path=path):
+                status, _, body = self.request('GET', path)
+                self.assertEqual((404, {'error': 'not_found'}), (status, body))
+        status, _, body = self.request('GET', '/assets/qrcodegen.js', headers={'Host': 'attacker.example'})
+        self.assertEqual((403, {'error': 'host'}), (status, body))
+
     def test_wrong_password_never_creates_session_and_hash_credentials_accept_correct_password(self):
         self.assertNotIn('password', self.server.credentials)
         self.assertNotEqual(self.password, self.server.credentials['hash'])
