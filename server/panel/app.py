@@ -8,10 +8,13 @@ import json
 import os
 from pathlib import Path
 import secrets
+import stat
 import threading
 import time
+import uuid
 from urllib.parse import urlsplit
 from phone_store import PhoneStore
+from aka_broker import AkaBroker
 from http import cookies
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -50,6 +53,25 @@ class PanelServer(ThreadingHTTPServer):
                 raise ValueError('Public origin must be an HTTPS origin without a path.')
         self.public_origin = public_origin
         self.phone_store = PhoneStore(state_dir)
+        self.aka_broker = AkaBroker()
+        self.engine_slots = threading.BoundedSemaphore(2)
+        self.engine_token_hash = None
+        token_path = Path(state_dir) / 'engine-token.sha256'
+        try:
+            fd = os.open(token_path, os.O_RDONLY | getattr(os, 'O_NOFOLLOW', 0))
+        except FileNotFoundError:
+            pass  # Engine access is disabled until separately provisioned.
+        else:
+            with os.fdopen(fd, 'r') as stream:
+                info = os.fstat(stream.fileno())
+                if (not stat.S_ISREG(info.st_mode) or stat.S_IMODE(info.st_mode) != 0o600 or info.st_nlink != 1
+                        or info.st_uid != Path(state_dir).stat().st_uid):
+                    raise ValueError('Engine credential file must be private and regular.')
+                raw_digest = stream.read(67)
+                digest = raw_digest.removesuffix('\n')
+                if len(raw_digest) > 65 or len(digest) != 64 or any(c not in '0123456789abcdef' for c in digest):
+                    raise ValueError('Invalid engine credential digest.')
+                self.engine_token_hash = digest
         self.phone_attempts = []
         self.sessions = {}
         self.attempts = []
@@ -131,7 +153,16 @@ class Handler(BaseHTTPRequestHandler):
         length = int(self.headers.get('Content-Length', '0'))
         if not 0 < length <= 4096 or self.headers.get('Content-Type', '').split(';', 1)[0].strip() != 'application/json':
             raise ValueError('Invalid request.')
-        data = json.loads(self.rfile.read(length))
+        def unique(pairs):
+            result = {}
+            for key, value in pairs:
+                if key in result:
+                    raise ValueError('Duplicate field.')
+                result[key] = value
+            return result
+        def invalid_constant(_):
+            raise ValueError('Invalid JSON constant.')
+        data = json.loads(self.rfile.read(length), object_pairs_hook=unique, parse_constant=invalid_constant)
         if not isinstance(data, dict):
             raise ValueError('Invalid request.')
         return data
@@ -152,6 +183,20 @@ class Handler(BaseHTTPRequestHandler):
             if not header.startswith('Bearer ') or len(header) > 256:
                 raise PermissionError()
             token = header[7:]
+            if self.path.startswith('/api/phone/aka/'):
+                device_id = self.server.phone_store.authorize(token)
+                broker = self.server.aka_broker
+                if self.path == '/api/phone/aka/session' and set(data) == {'selected_slot'}:
+                    return self.reply(200, broker.begin(device_id, data['selected_slot']))
+                if self.path == '/api/phone/aka/poll' and set(data) == {'session_id'}:
+                    return self.reply(200, {'challenge': broker.poll(device_id, data['session_id'])})
+                if self.path == '/api/phone/aka/stop' and set(data) == {'session_id'}:
+                    broker.stop(device_id, data['session_id'])
+                    return self.reply(200, {'ok': True})
+                if self.path == '/api/phone/aka/result' and set(data) == {'session_id', 'challenge_id', 'state', 'payload'}:
+                    broker.submit(device_id, data['session_id'], {k: data[k] for k in ('challenge_id', 'state', 'payload')})
+                    return self.reply(200, {'ok': True})
+                raise ValueError()
             if self.path == '/api/phone/report':
                 self.server.phone_store.report(token, data)
                 return self.reply(200, {'ok': True})
@@ -159,9 +204,45 @@ class Handler(BaseHTTPRequestHandler):
                 if data:
                     raise ValueError()
                 # Authenticate through the store without accepting an arbitrary device ID.
+                device_id = self.server.phone_store.authorize(token)
                 self.server.phone_store.disconnect(token)
+                self.server.aka_broker.revoke(device_id)
                 return self.reply(200, {'ok': True})
             self.reply(404, {'error': 'not_found'})
+        except PermissionError:
+            self.reply(401, {'error': 'unauthorized'})
+        except (ValueError, TypeError, KeyError):
+            self.reply(400, {'error': 'invalid_request'})
+    def engine_request(self):
+        if any(self.headers.get(name) is not None for name in ('Origin', 'Forwarded', 'X-Forwarded-Proto', 'X-Forwarded-For')):
+            return self.reply(403, {'error': 'local_engine_only'})
+        if self.server.engine_token_hash is None:
+            return self.reply(503, {'error': 'engine_disabled'})
+        header = self.headers.get('Authorization', '')
+        token = header[7:] if header.startswith('Bearer ') else ''
+        if not 32 <= len(token) <= 128 or not hmac.compare_digest(
+                hashlib.sha256(token.encode()).hexdigest(), self.server.engine_token_hash):
+            return self.reply(401, {'error': 'unauthorized'})
+        try:
+            data = self.read_json()
+            if set(data) != {'device_id', 'rand', 'autn'}:
+                raise ValueError()
+            if not isinstance(data['device_id'], str) or str(uuid.UUID(data['device_id'])) != data['device_id']:
+                raise ValueError()
+            if not self.server.phone_store.contains_device(data['device_id']):
+                return self.reply(401, {'error': 'unauthorized'})
+            if not self.server.engine_slots.acquire(blocking=False):
+                return self.reply(429, {'error': 'try_later'})
+            try:
+                result = self.server.aka_broker.request(data['device_id'], data['rand'], data['autn'])
+                try:
+                    if not self.server.phone_store.contains_device(data['device_id']):
+                        return self.reply(200, {'state': 'REVOKED', 'payload': None})
+                    return self.reply(200, result.to_dict())
+                finally:
+                    result.clear()
+            finally:
+                self.server.engine_slots.release()
         except PermissionError:
             self.reply(401, {'error': 'unauthorized'})
         except (ValueError, TypeError, KeyError):
@@ -169,7 +250,10 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         if not self.permitted_host():
             return self.reply(403, {'error': 'host'})
-        if self.path in ('/api/phone/pair', '/api/phone/report', '/api/phone/disconnect'):
+        if self.path == '/api/engine/aka':
+            return self.engine_request()
+        if self.path in ('/api/phone/pair', '/api/phone/report', '/api/phone/disconnect',
+                         '/api/phone/aka/session', '/api/phone/aka/poll', '/api/phone/aka/result', '/api/phone/aka/stop'):
             return self.phone_request()
         expected = f'http://{self.headers.get("Host")}'
         if self.headers.get('Origin') not in {expected, self.server.public_origin} or not self.headers.get('Origin'):
@@ -182,7 +266,9 @@ class Handler(BaseHTTPRequestHandler):
                 if self.path == '/api/admin/pairing' and not data:
                     return self.reply(200, self.server.phone_store.create_pairing())
                 if self.path == '/api/admin/revoke' and set(data) == {'device_id'} and isinstance(data['device_id'], str):
-                    return self.reply(200, {'ok': self.server.phone_store.revoke(data['device_id'])})
+                    revoked = self.server.phone_store.revoke(data['device_id'])
+                    self.server.aka_broker.revoke(data['device_id'])
+                    return self.reply(200, {'ok': revoked})
                 raise ValueError()
             except (ValueError, TypeError, KeyError):
                 return self.reply(400, {'error': 'invalid_request'})

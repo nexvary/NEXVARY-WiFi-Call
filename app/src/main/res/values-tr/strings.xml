@@ -156,4 +156,16 @@
     <string name="gateway_qr_invalid">Bu QR kodu geçerli bir NEXVARY eşleştirme kodu değil.</string>
     <string name="gateway_qr_unavailable">QR kodu tarama kullanılamıyor. Adresi ve kodu elle girebilirsiniz.</string>
     <string name="gateway_qr_scanning">QR kodu tarayıcısı açılıyor…</string>
+    <string name="aka_title">Telefon üzerinden SIM kimlik doğrulaması</string>
+    <string name="aka_consent">Bu ekran açık kaldığı sürece, seçilen SIM 5 dakika boyunca ağ geçidinin kimlik doğrulama isteklerini işler. Yanıtlar HTTPS üzerinden gönderilir ve saklanmaz. SIM’in uzun süreli gizli anahtarı asla okunmaz. Bu işlem IMS veya aramaları doğrulamaz.</string>
+    <string name="aka_enable">Seçilen SIM için kimlik doğrulamayı etkinleştirmeyi kabul ediyorum</string>
+    <string name="aka_start">Kimlik doğrulama oturumunu başlat</string>
+    <string name="aka_stop">Oturumu durdur</string>
+    <string name="aka_starting">Oturum başlatılıyor…</string>
+    <string name="aka_active">Oturum etkin; ağ geçidinden istek bekleniyor</string>
+    <string name="aka_stopped">Oturum durduruldu</string>
+    <string name="aka_error">Oturum sürdürülemedi. Bağlantıyı ve SIM izinlerini kontrol edin.</string>
+    <string name="aka_unavailable">Kimlik doğrulama için seçili bir SIM ve kullanılabilir operatör ayrıcalıkları gerekir.</string>
+    <string name="aka_response_sent">SIM kimlik doğrulama yanıtı gönderildi; ağ doğrulaması bekleniyor</string>
+    <string name="aka_sync_sent">SIM yeniden eşitleme yanıtı gönderildi; doğrulama bekleniyor</string>
 </resources>

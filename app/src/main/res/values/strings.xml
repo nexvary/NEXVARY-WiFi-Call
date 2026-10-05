@@ -156,4 +156,16 @@
     <string name="gateway_qr_invalid">This QR code is not a valid NEXVARY pairing code.</string>
     <string name="gateway_qr_unavailable">QR scanning is unavailable. You can enter the address and code manually.</string>
     <string name="gateway_qr_scanning">Opening QR scanner…</string>
+    <string name="aka_title">Phone-as-SIM authentication</string>
+    <string name="aka_consent">For 5 minutes while this screen stays open, the selected SIM handles gateway authentication challenges. Responses travel over HTTPS and are not stored. The SIM’s long-term secret is never read. This does not verify IMS or calls.</string>
+    <string name="aka_enable">I agree to enable authentication for the selected SIM</string>
+    <string name="aka_start">Start authentication session</string>
+    <string name="aka_stop">Stop session</string>
+    <string name="aka_starting">Starting session…</string>
+    <string name="aka_active">Session active; waiting for a gateway challenge</string>
+    <string name="aka_stopped">Session stopped</string>
+    <string name="aka_error">The session could not continue. Check the connection and SIM permissions.</string>
+    <string name="aka_unavailable">Authentication requires a selected SIM and available carrier privileges.</string>
+    <string name="aka_response_sent">SIM authentication response sent; network verification pending</string>
+    <string name="aka_sync_sent">SIM resynchronization response sent; verification pending</string>
 </resources>

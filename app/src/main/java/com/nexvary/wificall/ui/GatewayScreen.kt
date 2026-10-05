@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.os.Build
+import android.os.SystemClock
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -25,6 +26,15 @@ import androidx.compose.ui.unit.dp
 import com.nexvary.wificall.R
 import com.nexvary.wificall.platform.gateway.*
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.LifecycleOwner
+import com.nexvary.wificall.platform.PhoneAsSimCapability
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -44,7 +54,26 @@ import kotlinx.coroutines.withContext
     var message by remember { mutableStateOf<Int?>(null) }
     var error by remember { mutableStateOf(false) }
     var remotelyRevoked by remember { mutableStateOf(false) }
-    val busy = loading || busyAction != null
+    var akaConsent by remember { mutableStateOf(false) }
+    var akaRunning by remember { mutableStateOf(false) }
+    var akaJob by remember { mutableStateOf<Job?>(null) }
+    val latestState by rememberUpdatedState(state)
+    val akaClient = remember { PhoneAkaClient() }
+    val akaAdapter = remember(context) { PhoneAkaAdapter(context) }
+    val busy = loading || busyAction != null || akaRunning
+
+    DisposableEffect(scanContext, state.selectedSubscriptionId, credentials?.deviceId) {
+        val owner = scanContext as? LifecycleOwner
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP) akaJob?.cancel()
+        }
+        owner?.lifecycle?.addObserver(observer)
+        onDispose {
+            akaJob?.cancel()
+            akaConsent = false
+            owner?.lifecycle?.removeObserver(observer)
+        }
+    }
 
     LaunchedEffect(preferences) {
         when (val loaded = withContext(Dispatchers.IO) { preferences.load() }) {
@@ -55,6 +84,71 @@ import kotlinx.coroutines.withContext
     }
 
     fun showMessage(resource: Int, failure: Boolean = false) { message = resource; error = failure }
+    fun foreground() = (scanContext as? LifecycleOwner)?.lifecycle?.currentState
+        ?.isAtLeast(Lifecycle.State.STARTED) == true
+    fun startAka() {
+        val paired = credentials ?: return
+        val selected = state.subscriptions.firstOrNull { it.id == state.selectedSubscriptionId } ?: return
+        if (busy || !foreground() || !akaConsent || remotelyRevoked || selected.slotIndex !in 0..7 ||
+            state.phoneAsSim?.capability != PhoneAsSimCapability.AVAILABLE_BY_CARRIER_PRIVILEGE) return
+        akaRunning = true
+        message = R.string.aka_starting
+        error = false
+        akaJob = scope.launch {
+            var opened: PhoneAkaSession? = null
+            try {
+                val started = withContext(Dispatchers.IO) {
+                    akaClient.start(paired, selected.slotIndex).also {
+                        if (it is GatewayResult.Success) opened = it.value
+                    }
+                }
+                if (started is GatewayResult.Failure) { showMessage(R.string.aka_error, true); return@launch }
+                val session = (started as GatewayResult.Success).value
+                val deadline = SystemClock.elapsedRealtime() + 300_000
+                showMessage(R.string.aka_active)
+                while (isActive && foreground() && SystemClock.elapsedRealtime() < deadline &&
+                    System.currentTimeMillis() / 1000 < session.expiresAt) {
+                    if (latestState.selectedSubscriptionId != selected.id) break
+                    val polled = withContext(Dispatchers.IO) { akaClient.poll(paired, session) }
+                    if (polled is GatewayResult.Failure) { showMessage(R.string.aka_error, true); break }
+                    val challenge = (polled as GatewayResult.Success).value
+                    if (challenge != null) {
+                        val handled = withContext(Dispatchers.IO) {
+                            if (!isActive || !foreground() || latestState.selectedSubscriptionId != selected.id ||
+                                System.currentTimeMillis() / 1000 >= challenge.expiresAt) null else {
+                                val response = akaAdapter.authenticate(selected.id, challenge.rand, challenge.autn)
+                                try {
+                                    if (!isActive || !foreground() || latestState.selectedSubscriptionId != selected.id ||
+                                        System.currentTimeMillis() / 1000 >= challenge.expiresAt) null else {
+                                        val submitted = akaClient.submit(paired, session, challenge, response)
+                                        Pair(submitted, when (response) {
+                                            is PhoneAkaResult.Success -> R.string.aka_response_sent
+                                            is PhoneAkaResult.SynchronizationFailure -> R.string.aka_sync_sent
+                                            is PhoneAkaResult.Failure -> R.string.aka_unavailable
+                                        })
+                                    }
+                                } finally { response.destroy() }
+                            }
+                        }
+                        if (handled == null) break
+                        if (handled.first is GatewayResult.Failure) { showMessage(R.string.aka_error, true); break }
+                        showMessage(handled.second, handled.second == R.string.aka_unavailable)
+                        if (handled.second == R.string.aka_unavailable) break
+                    }
+                    delay(2_000)
+                }
+            } catch (_: CancellationException) {
+                // Leaving the foreground never starts or continues authentication.
+            } finally {
+                opened?.let { session -> withContext(NonCancellable + Dispatchers.IO) { akaClient.stop(paired, session) } }
+                akaRunning = false
+                akaConsent = false
+                if (!error) showMessage(R.string.aka_stopped)
+                akaJob = null
+            }
+        }
+    }
+    fun stopAka() { akaJob?.cancel() }
     fun scan() {
         if (loading || busyAction != null || credentials != null) return
         busyAction = R.string.gateway_qr_scanning
@@ -78,7 +172,7 @@ import kotlinx.coroutines.withContext
         }
     }
     fun pair() {
-        if (loading || busyAction != null) return
+        if (loading || busyAction != null || akaRunning) return
         if (GatewayAddress.normalize(url) == null) { showMessage(R.string.gateway_error_url, true); return }
         if (code.isBlank()) { showMessage(R.string.gateway_code_required, true); return }
         busyAction = R.string.gateway_pairing
@@ -141,7 +235,7 @@ import kotlinx.coroutines.withContext
     }
     fun disconnect() {
         val paired = credentials ?: return
-        if (loading || busyAction != null) return
+        if (loading || busyAction != null || akaRunning) return
         busyAction = R.string.gateway_disconnecting
         message = null
         scope.launch {
@@ -201,6 +295,27 @@ import kotlinx.coroutines.withContext
         } else {
             Button(onClick = ::send, enabled = !busy && !remotelyRevoked, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp).testTag("gateway-send")) { Text(stringResource(R.string.gateway_send)) }
             OutlinedButton(onClick = ::disconnect, enabled = !busy, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("gateway-disconnect")) { Text(stringResource(R.string.gateway_disconnect)) }
+        }
+        if (credentials != null) {
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(stringResource(R.string.aka_title), style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(R.string.aka_consent), style = MaterialTheme.typography.bodySmall)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(checked = akaConsent, onCheckedChange = { akaConsent = it }, enabled = !busy,
+                            modifier = Modifier.testTag("aka-consent"))
+                        Text(stringResource(R.string.aka_enable), style = MaterialTheme.typography.bodyMedium)
+                    }
+                    val available = state.selectedSubscriptionId != null &&
+                        state.phoneAsSim?.capability == PhoneAsSimCapability.AVAILABLE_BY_CARRIER_PRIVILEGE
+                    if (!available) Text(stringResource(R.string.aka_unavailable), color = MaterialTheme.colorScheme.secondary,
+                        style = MaterialTheme.typography.bodySmall)
+                    if (akaRunning) OutlinedButton(onClick = ::stopAka, modifier = Modifier.fillMaxWidth().testTag("aka-stop")) {
+                        Text(stringResource(R.string.aka_stop))
+                    } else Button(onClick = ::startAka, enabled = !busy && akaConsent && available && !remotelyRevoked,
+                        modifier = Modifier.fillMaxWidth().testTag("aka-start")) { Text(stringResource(R.string.aka_start)) }
+                }
+            }
         }
         if (busy) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)

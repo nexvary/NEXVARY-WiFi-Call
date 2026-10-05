@@ -23,6 +23,8 @@ jobs:
         run: for script in server/*.sh; do bash -n "$script"; done
       - name: Test authenticated panel API and evidence boundaries
         run: python3 -m unittest discover -s server/panel -p 'test_*.py' -v
+      - name: Test fail-closed engine staging and transient AKA adapter
+        run: python3 -m unittest discover -s server/engine -p 'test_*.py' -v
       - uses: actions/setup-node@v4
         with:
           node-version: '20'

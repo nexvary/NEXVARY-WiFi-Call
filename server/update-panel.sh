@@ -57,16 +57,16 @@ done
 [[ $(cat "$app_dir/.nexvary-panel-owned") == 'NEXVARY admin panel install v1' ]] || { printf 'Ownership marker mismatch; refusing.\n' >&2; exit 1; }
 [[ $(cat "$app_dir/.nexvary-panel-unit-sha256") == $(sha256sum "$unit_file" | awk '{print $1}') ]] || { printf 'Unit changed since installation; inspect before updating.\n' >&2; exit 1; }
 [[ $(systemctl show -p FragmentPath --value "$service") == "$unit_file" ]] || { printf 'Active unit path is not the owned unit; refusing.\n' >&2; exit 1; }
-for source in app.py phone_store.py index.html qrcodegen.js THIRD-PARTY.md; do
+for source in app.py phone_store.py aka_broker.py index.html qrcodegen.js THIRD-PARTY.md; do
   [[ -f "$base_dir/panel/$source" && ! -L "$base_dir/panel/$source" ]] || { printf 'Required source missing/symlinked: %s\n' "$source" >&2; exit 1; }
 done
 stage_app=$(mktemp -d /opt/.nexvary-wifi-panel.update.XXXXXXXX)
 stage_unit=$(mktemp /etc/systemd/system/.nexvary-wifi-panel.update.XXXXXXXX)
-for source in app.py phone_store.py index.html qrcodegen.js THIRD-PARTY.md; do install -m 644 "$base_dir/panel/$source" "$stage_app/$source"; done
+for source in app.py phone_store.py aka_broker.py index.html qrcodegen.js THIRD-PARTY.md; do install -m 644 "$base_dir/panel/$source" "$stage_app/$source"; done
 /usr/bin/python3 - "$stage_app" <<'CHECK'
 from pathlib import Path
 import sys
-for name in ('app.py', 'phone_store.py'):
+for name in ('app.py', 'phone_store.py', 'aka_broker.py'):
     source = Path(sys.argv[1]) / name
     compile(source.read_text(), str(source), 'exec')
 CHECK

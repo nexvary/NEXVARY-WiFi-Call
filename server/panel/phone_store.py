@@ -166,6 +166,22 @@ class PhoneStore:
             database.commit()
         return True
 
+    def authorize(self, token):
+        """Resolve a bearer to its device without exposing its hash or stored report."""
+        try:
+            token_hash = _digest(token)
+        except ValueError:
+            raise PermissionError('Device is not authorized.') from None
+        with self._connection() as database:
+            row = database.execute('SELECT device_id FROM devices WHERE token_hash = ?', (token_hash,)).fetchone()
+        if row is None:
+            raise PermissionError('Device is not authorized.')
+        return row['device_id']
+
+    def contains_device(self, device_id):
+        with self._connection() as database:
+            return database.execute('SELECT 1 FROM devices WHERE device_id = ?', (device_id,)).fetchone() is not None
+
     def list_devices(self):
         with self._connection() as database:
             rows = database.execute('SELECT device_id, last_seen, report FROM devices ORDER BY device_id').fetchall()

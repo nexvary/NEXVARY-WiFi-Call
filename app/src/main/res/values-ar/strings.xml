@@ -156,4 +156,16 @@
     <string name="gateway_qr_invalid">رمز QR هذا ليس رمز ربط صالحًا لـ NEXVARY.</string>
     <string name="gateway_qr_unavailable">مسح رموز QR غير متاح. يمكنك إدخال العنوان والرمز يدويًا.</string>
     <string name="gateway_qr_scanning">جارٍ فتح ماسح رموز QR…</string>
+    <string name="aka_title">مصادقة الشريحة عبر الهاتف</string>
+    <string name="aka_consent">لمدة 5 دقائق ما دامت هذه الشاشة مفتوحة، تتولى الشريحة المحددة تحديات مصادقة البوابة. تُرسل الاستجابات عبر HTTPS ولا تُخزَّن. لا يُقرأ السر الدائم للشريحة مطلقًا. هذا لا يثبت نجاح IMS أو المكالمات.</string>
+    <string name="aka_enable">أوافق على تفعيل المصادقة للشريحة المحددة</string>
+    <string name="aka_start">بدء جلسة المصادقة</string>
+    <string name="aka_stop">إيقاف الجلسة</string>
+    <string name="aka_starting">جارٍ بدء الجلسة…</string>
+    <string name="aka_active">الجلسة نشطة؛ بانتظار تحدٍّ من البوابة</string>
+    <string name="aka_stopped">توقفت الجلسة</string>
+    <string name="aka_error">تعذّر استمرار الجلسة. تحقق من الاتصال وصلاحيات الشريحة.</string>
+    <string name="aka_unavailable">تتطلب المصادقة اختيار شريحة وتوفر صلاحية شركة الاتصالات.</string>
+    <string name="aka_response_sent">أُرسلت استجابة مصادقة الشريحة؛ بانتظار تحقق الشبكة</string>
+    <string name="aka_sync_sent">أُرسلت استجابة إعادة مزامنة الشريحة؛ بانتظار التحقق</string>
 </resources>

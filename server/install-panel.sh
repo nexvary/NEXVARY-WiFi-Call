@@ -73,7 +73,7 @@ for executable in systemctl useradd getent install mktemp sha256sum; do
   command -v "$executable" >/dev/null || { printf 'Missing required tool: %s. Install separately.\n' "$executable" >&2; exit 1; }
 done
 [[ -d /run/systemd/system ]] || { printf 'systemd is not running on this host.\n' >&2; exit 1; }
-[[ -f "$base_dir/panel/app.py" && -f "$base_dir/panel/phone_store.py" && -f "$base_dir/panel/index.html" && -f "$base_dir/panel/qrcodegen.js" && -f "$base_dir/panel/THIRD-PARTY.md" ]] || { printf 'Panel source files are missing.\n' >&2; exit 1; }
+[[ -f "$base_dir/panel/aka_broker.py" && -f "$base_dir/panel/app.py" && -f "$base_dir/panel/phone_store.py" && -f "$base_dir/panel/index.html" && -f "$base_dir/panel/qrcodegen.js" && -f "$base_dir/panel/THIRD-PARTY.md" ]] || { printf 'Panel source files are missing.\n' >&2; exit 1; }
 for existing in "$app_dir" "$state_dir" "$unit_file"; do
   [[ ! -e "$existing" && ! -L "$existing" ]] || { printf 'Refusing existing installation path: %s\n' "$existing" >&2; exit 1; }
 done
@@ -94,13 +94,14 @@ stage_state=$(mktemp -d /var/lib/.nexvary-wifi-panel.XXXXXXXX)
 trap 'printf "Installation interrupted. Private staging paths, if still present: %s %s\n" "$stage_app" "$stage_state" >&2' ERR
 install -m 644 "$base_dir/panel/app.py" "$stage_app/app.py"
 install -m 644 "$base_dir/panel/phone_store.py" "$stage_app/phone_store.py"
+install -m 644 "$base_dir/panel/aka_broker.py" "$stage_app/aka_broker.py"
 install -m 644 "$base_dir/panel/index.html" "$stage_app/index.html"
 install -m 644 "$base_dir/panel/qrcodegen.js" "$stage_app/qrcodegen.js"
 install -m 644 "$base_dir/panel/THIRD-PARTY.md" "$stage_app/THIRD-PARTY.md"
 /usr/bin/python3 "$stage_app/app.py" --init-password --state-dir "$stage_state"
 useradd --system --user-group --home-dir "$state_dir" --no-create-home --shell /usr/sbin/nologin "$service_user"
 chown -R "$service_user:$service_user" "$stage_state"
-chmod 750 "$stage_state"
+chmod 700 "$stage_state"
 chmod 755 "$stage_app"
 printf 'NEXVARY admin panel install v1\n' > "$stage_app/.nexvary-panel-owned"
 chmod 600 "$stage_app/.nexvary-panel-owned"

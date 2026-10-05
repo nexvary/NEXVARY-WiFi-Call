@@ -156,4 +156,16 @@
     <string name="gateway_qr_invalid">Questo codice QR non è un codice di associazione NEXVARY valido.</string>
     <string name="gateway_qr_unavailable">La scansione QR non è disponibile. Puoi inserire l’indirizzo e il codice manualmente.</string>
     <string name="gateway_qr_scanning">Apertura dello scanner QR…</string>
+    <string name="aka_title">Autenticazione della SIM tramite il telefono</string>
+    <string name="aka_consent">Per 5 minuti, mentre questa schermata rimane aperta, la SIM selezionata gestisce le richieste di autenticazione del gateway. Le risposte viaggiano tramite HTTPS e non vengono memorizzate. Il segreto permanente della SIM non viene mai letto. Questo non verifica IMS o le chiamate.</string>
+    <string name="aka_enable">Acconsento ad abilitare l’autenticazione per la SIM selezionata</string>
+    <string name="aka_start">Avvia sessione di autenticazione</string>
+    <string name="aka_stop">Interrompi sessione</string>
+    <string name="aka_starting">Avvio della sessione…</string>
+    <string name="aka_active">Sessione attiva; in attesa di una richiesta dal gateway</string>
+    <string name="aka_stopped">Sessione interrotta</string>
+    <string name="aka_error">Impossibile continuare la sessione. Controlla la connessione e i permessi della SIM.</string>
+    <string name="aka_unavailable">L’autenticazione richiede una SIM selezionata e privilegi dell’operatore disponibili.</string>
+    <string name="aka_response_sent">Risposta di autenticazione della SIM inviata; verifica della rete in attesa</string>
+    <string name="aka_sync_sent">Risposta di risincronizzazione della SIM inviata; verifica in attesa</string>
 </resources>

@@ -10,3 +10,5 @@ data/
 captures/
 *.pcap
 *.pcapng
+__pycache__/
+*.pyc
