@@ -101,7 +101,7 @@
     <string name="detected">SIM erkannt</string>
     <string name="phone_as_sim">Telefon als SIM / AKA</string>
     <string name="capability_available">SIM-Authentifizierung ist auf diesem Telefon erlaubt</string>
-    <string name="capability_privilege">Der Mobilfunkanbieter gewährt dieser App keine Berechtigung zur SIM-Authentifizierung</string>
+    <string name="capability_privilege">Mobilfunkanbieter-Berechtigungen sind für diese App derzeit nicht verfügbar</string>
     <string name="capability_permission">Erlaube den Telefonzugriff, um diese SIM zu prüfen</string>
     <string name="capability_no_sim">Wähle eine aktive SIM, um fortzufahren</string>
     <string name="capability_unavailable">Telefoniedienste sind nicht verfügbar</string>

@@ -101,7 +101,7 @@
     <string name="detected">SIM algılandı</string>
     <string name="phone_as_sim">Telefonu SIM olarak kullanma / AKA</string>
     <string name="capability_available">Bu telefonda SIM kimlik doğrulamasına izin veriliyor</string>
-    <string name="capability_privilege">Operatör bu uygulamaya SIM kimlik doğrulama yetkisi vermiyor</string>
+    <string name="capability_privilege">Operatör ayrıcalıkları şu anda bu uygulama için kullanılamıyor</string>
     <string name="capability_permission">Bu SIM kartı kontrol etmek için telefon erişimine izin verin</string>
     <string name="capability_no_sim">Devam etmek için etkin bir SIM seçin</string>
     <string name="capability_unavailable">Telefon hizmetleri kullanılamıyor</string>

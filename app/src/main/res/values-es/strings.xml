@@ -101,7 +101,7 @@
     <string name="detected">SIM detectada</string>
     <string name="phone_as_sim">Teléfono como SIM / AKA</string>
     <string name="capability_available">Se permite la autenticación de la SIM en este teléfono</string>
-    <string name="capability_privilege">El operador no concede a esta aplicación permisos de autenticación de la SIM</string>
+    <string name="capability_privilege">Los privilegios del operador no están disponibles actualmente para esta aplicación</string>
     <string name="capability_permission">Permite el acceso al teléfono para comprobar esta SIM</string>
     <string name="capability_no_sim">Selecciona una SIM activa para continuar</string>
     <string name="capability_unavailable">Los servicios de telefonía no están disponibles</string>

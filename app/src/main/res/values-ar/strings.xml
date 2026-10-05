@@ -101,7 +101,7 @@
     <string name="detected">تم اكتشاف الشريحة</string>
     <string name="phone_as_sim">استخدام الهاتف كشريحة / AKA</string>
     <string name="capability_available">يُسمح بمصادقة الشريحة على هذا الهاتف</string>
-    <string name="capability_privilege">شركة الاتصالات لا تمنح التطبيق صلاحية مصادقة الشريحة</string>
+    <string name="capability_privilege">صلاحية شركة الاتصالات غير متاحة لهذا التطبيق حاليًا</string>
     <string name="capability_permission">اسمح بالوصول إلى الهاتف لفحص هذه الشريحة</string>
     <string name="capability_no_sim">اختر شريحة نشطة للمتابعة</string>
     <string name="capability_unavailable">خدمات الهاتف غير متاحة</string>

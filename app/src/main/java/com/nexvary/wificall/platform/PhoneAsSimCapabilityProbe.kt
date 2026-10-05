@@ -60,7 +60,7 @@ class PhoneAsSimCapabilityProbe(private val context: Context) {
                             "hasCarrierPrivileges=true; live USIM EAP-AKA is not tested.", chosen.subscriptionId)
                     } else {
                         result(PhoneAsSimCapability.CARRIER_PRIVILEGE_REQUIRED,
-                            "hasCarrierPrivileges=false; public ICC authentication requires carrier authorization. No bypass attempted.", chosen.subscriptionId)
+                            "hasCarrierPrivileges=false on this subscription; carrier privileges are not confirmed for this app. This does not establish carrier Wi-Fi calling policy; live USIM EAP-AKA is not tested.", chosen.subscriptionId)
                     }
                 }
             }
