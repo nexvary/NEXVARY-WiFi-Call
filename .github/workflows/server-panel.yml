@@ -1,0 +1,44 @@
+name: Server panel checks
+on:
+  push:
+    branches: [dev/foundation]
+    paths: ['server/**', '.github/workflows/server-panel.yml']
+  pull_request:
+    paths: ['server/**', '.github/workflows/server-panel.yml']
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify shell script syntax
+        run: for script in server/*.sh; do bash -n "$script"; done
+      - name: Test authenticated panel API and evidence boundaries
+        run: python3 -m unittest discover -s server/panel -p 'test_*.py' -v
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install pinned browser test runtime
+        run: |
+          npm install --no-save playwright@1.58.2
+          npx playwright install --with-deps chromium
+      - name: Check desktop and mobile panel UI
+        run: node server/panel/ui-check.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: NEXVARY-server-panel-ui
+          path: panel-ui-screenshots
+          if-no-files-found: error
+  installer-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify installer and owned uninstall on disposable runner
+        run: python3 server/panel/install-smoke.py

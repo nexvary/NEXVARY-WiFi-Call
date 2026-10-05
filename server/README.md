@@ -1,4 +1,18 @@
-# NEXVARY gateway preparation
+# NEXVARY WiFi Call server
+
+## Admin panel
+
+The first admin panel is implemented: password login, live host resources, refresh/logout, and eight truthful untested carrier stages. It is a read-only monitoring panel; no gateway or Android adapter has been deployed.
+
+```bash
+bash server/preflight.sh
+sudo bash server/install-panel.sh --install
+```
+
+See [admin panel installation](docs/ADMIN-PANEL.md) for SSH access and service checks.
+
+## Gateway preparation
+
 
 These tools prepare the next milestone after the Android APK. No gateway has been installed or verified.
 
