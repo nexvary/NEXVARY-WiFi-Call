@@ -9,6 +9,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.nexvary.wificall.MainActivity
 import com.nexvary.wificall.R
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import java.io.File
@@ -44,6 +45,10 @@ class LanguagePersistenceTest {
             compose.onNodeWithText(translated(code, R.string.language)).performScrollTo().assertIsDisplayed()
             compose.activityRule.scenario.recreate()
             compose.onNodeWithText(translated(code, R.string.more)).assertIsDisplayed()
+            assertEquals(
+                if (code == "ar") android.view.View.LAYOUT_DIRECTION_RTL else android.view.View.LAYOUT_DIRECTION_LTR,
+                compose.activity.resources.configuration.layoutDirection
+            )
             language = code
             if (code == "ar" || code == "en") {
                 compose.onNodeWithText(translated(code, R.string.home)).performClick()
@@ -56,5 +61,15 @@ class LanguagePersistenceTest {
                 compose.onNodeWithText(translated(code, R.string.more)).performClick()
             }
         }
+        val selectedName = options.first { it.first == language }.second
+        compose.onNodeWithText(selectedName).performScrollTo().performClick()
+        compose.onNodeWithText(translated(language, R.string.follow_system)).performClick()
+        val deviceLanguage = base.resources.configuration.locales[0].language
+        compose.waitUntil(timeoutMillis = 10_000) {
+            compose.onAllNodesWithText(translated(deviceLanguage, R.string.more)).fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.activityRule.scenario.recreate()
+        compose.onNodeWithText(translated(deviceLanguage, R.string.more)).assertIsDisplayed()
+        assertEquals("", compose.activity.getSharedPreferences("preferences", 0).getString("language", ""))
     }
 }

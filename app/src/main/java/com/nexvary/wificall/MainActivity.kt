@@ -12,6 +12,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.SystemBarStyle
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -40,7 +41,7 @@ class MainActivity : ComponentActivity() {
             NexvaryTheme {
                 val context = LocalContext.current
                 var refresh by remember { mutableIntStateOf(0) }
-                var selectedSubscription by remember { mutableStateOf<Int?>(null) }
+                var selectedSubscription by rememberSaveable { mutableStateOf<Int?>(null) }
                 val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { refresh++ }
                 val state = remember(refresh, selectedSubscription) { DashboardLoader.load(context, selectedSubscription) }
                 DisposableEffect(Unit) {

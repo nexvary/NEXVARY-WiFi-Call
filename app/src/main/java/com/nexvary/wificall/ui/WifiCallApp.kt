@@ -16,6 +16,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.nexvary.wificall.R
 import com.nexvary.wificall.core.*
@@ -40,7 +41,7 @@ fun WifiCallApp(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(if (page == AppPage.HOME) R.string.app_name else page.title()), style = MaterialTheme.typography.titleLarge) },
+                title = { Text(stringResource(if (page == AppPage.HOME) R.string.app_name else page.title()), style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 navigationIcon = {
                     if (page != AppPage.HOME) IconButton(onClick = { back() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back))
@@ -62,65 +63,67 @@ fun WifiCallApp(
             }
         }
     ) { padding ->
-        Page(Modifier.padding(padding)) {
-            when (page) {
-                AppPage.HOME -> {
-                    ReadinessCard(initial)
-                    Button(onClick = { onRefresh(); open(AppPage.DIAGNOSTICS) }, modifier = Modifier.fillMaxWidth()) {
-                        Icon(Icons.Default.CheckCircle, null, Modifier.size(20.dp)); Spacer(Modifier.width(8.dp))
-                        Text(stringResource(R.string.start_check))
+        key(page) {
+            Page(Modifier.padding(padding)) {
+                when (page) {
+                    AppPage.HOME -> {
+                        ReadinessCard(initial)
+                        Button(onClick = { onRefresh(); open(AppPage.DIAGNOSTICS) }, modifier = Modifier.fillMaxWidth()) {
+                            Icon(Icons.Default.CheckCircle, null, Modifier.size(20.dp)); Spacer(Modifier.width(8.dp))
+                            Text(stringResource(R.string.start_check))
+                        }
+                        Metric(R.string.network_quality, label(initial.quality.grade))
+                        Action(R.string.changes, Icons.Default.Refresh) { open(AppPage.CHANGES) }
+                        Action(R.string.compatibility, Icons.Default.Info) { open(AppPage.COMPATIBILITY) }
                     }
-                    Metric(R.string.network_quality, label(initial.quality.grade))
-                    Action(R.string.changes, Icons.Default.Refresh) { open(AppPage.CHANGES) }
-                    Action(R.string.compatibility, Icons.Default.Info) { open(AppPage.COMPATIBILITY) }
-                }
-                AppPage.SIMS -> {
-                    if (initial.phonePermissionRequired) {
-                        InfoCard(stringResource(R.string.sim_permission))
-                        Button(onClick = onRequestPhonePermission, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.allow_sim)) }
-                    } else if (initial.subscriptions.isEmpty()) InfoCard(stringResource(R.string.no_sims))
-                    else initial.subscriptions.forEach { sim ->
-                        OutlinedCard(onClick = { onSelectSubscription(sim.id) }, modifier = Modifier.fillMaxWidth()) {
-                            Row(Modifier.padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                RadioButton(selected = sim.id == initial.selectedSubscriptionId, onClick = null)
-                                Column(Modifier.weight(1f)) {
-                                    Text(stringResource(R.string.sim_slot, sim.slotIndex + 1), style = MaterialTheme.typography.labelLarge)
-                                    Text(sim.carrierName ?: stringResource(R.string.unknown_carrier), style = MaterialTheme.typography.titleMedium)
+                    AppPage.SIMS -> {
+                        if (initial.phonePermissionRequired) {
+                            InfoCard(stringResource(R.string.sim_permission))
+                            Button(onClick = onRequestPhonePermission, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.allow_sim)) }
+                        } else if (initial.subscriptions.isEmpty()) InfoCard(stringResource(R.string.no_sims))
+                        else initial.subscriptions.forEach { sim ->
+                            OutlinedCard(onClick = { onSelectSubscription(sim.id) }, modifier = Modifier.fillMaxWidth()) {
+                                Row(Modifier.padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                    RadioButton(selected = sim.id == initial.selectedSubscriptionId, onClick = null)
+                                    Column(Modifier.weight(1f)) {
+                                        Text(stringResource(R.string.sim_slot, sim.slotIndex + 1), style = MaterialTheme.typography.labelLarge)
+                                        Text(sim.carrierName ?: stringResource(R.string.unknown_carrier), style = MaterialTheme.typography.titleMedium)
+                                    }
                                 }
                             }
                         }
                     }
-                }
-                AppPage.CHANGES -> {
-                    if (initial.changes.isEmpty()) InfoCard(stringResource(R.string.no_changes))
-                    else initial.changes.forEach { InfoCard(label(it)) }
-                }
-                AppPage.DIAGNOSTICS -> {
-                    ReadinessCard(initial)
-                    Metric(R.string.path, label(initial.readiness.path))
-                    Metric(R.string.network_quality, label(initial.quality.grade))
-                    Metric(R.string.carrier_evidence, label(initial.evidence))
-                    Metric(R.string.entitlement, label(initial.entitlement))
-                    Metric(R.string.mode, stringResource(if (mode == AppMode.CONSUMER) R.string.consumer_mode else R.string.lab_mode))
-                    initial.readiness.blockers.forEach { InfoCard(label(it)) }
-                    if (mode == AppMode.LAB) InfoCard(stringResource(R.string.lab_explanation))
-                    OutlinedButton(onClick = { mode = mode.toggle() }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.switch_mode)) }
-                }
-                AppPage.COMPATIBILITY -> {
-                    Metric(R.string.carrier_evidence, label(initial.evidence))
-                    InfoCard(stringResource(R.string.compatibility_explanation))
-                }
-                AppPage.PRIVACY -> {
-                    InfoCard(stringResource(R.string.privacy_secrets))
-                    InfoCard(stringResource(R.string.privacy_exports))
-                }
-                AppPage.ABOUT -> AboutDeveloperScreen()
-                AppPage.SETTINGS -> {
-                    Metric(R.string.mode, stringResource(if (mode == AppMode.CONSUMER) R.string.consumer_mode else R.string.lab_mode))
-                    OutlinedButton(onClick = { mode = mode.toggle() }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.switch_mode)) }
-                    LanguagePicker(language, onLanguageChange)
-                    Action(R.string.privacy, Icons.Default.Info) { open(AppPage.PRIVACY) }
-                    Action(R.string.about_developer, Icons.Default.Info) { open(AppPage.ABOUT) }
+                    AppPage.CHANGES -> {
+                        if (initial.changes.isEmpty()) InfoCard(stringResource(R.string.no_changes))
+                        else initial.changes.forEach { InfoCard(label(it)) }
+                    }
+                    AppPage.DIAGNOSTICS -> {
+                        ReadinessCard(initial)
+                        Metric(R.string.path, label(initial.readiness.path))
+                        Metric(R.string.network_quality, label(initial.quality.grade))
+                        Metric(R.string.carrier_evidence, label(initial.evidence))
+                        Metric(R.string.entitlement, label(initial.entitlement))
+                        Metric(R.string.mode, stringResource(if (mode == AppMode.CONSUMER) R.string.consumer_mode else R.string.lab_mode))
+                        initial.readiness.blockers.forEach { InfoCard(label(it)) }
+                        if (mode == AppMode.LAB) InfoCard(stringResource(R.string.lab_explanation))
+                        OutlinedButton(onClick = { mode = mode.toggle() }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.switch_mode)) }
+                    }
+                    AppPage.COMPATIBILITY -> {
+                        Metric(R.string.carrier_evidence, label(initial.evidence))
+                        InfoCard(stringResource(R.string.compatibility_explanation))
+                    }
+                    AppPage.PRIVACY -> {
+                        InfoCard(stringResource(R.string.privacy_secrets))
+                        InfoCard(stringResource(R.string.privacy_exports))
+                    }
+                    AppPage.ABOUT -> AboutDeveloperScreen()
+                    AppPage.SETTINGS -> {
+                        Metric(R.string.mode, stringResource(if (mode == AppMode.CONSUMER) R.string.consumer_mode else R.string.lab_mode))
+                        OutlinedButton(onClick = { mode = mode.toggle() }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.switch_mode)) }
+                        LanguagePicker(language, onLanguageChange)
+                        Action(R.string.privacy, Icons.Default.Info) { open(AppPage.PRIVACY) }
+                        Action(R.string.about_developer, Icons.Default.Info) { open(AppPage.ABOUT) }
+                    }
                 }
             }
         }
