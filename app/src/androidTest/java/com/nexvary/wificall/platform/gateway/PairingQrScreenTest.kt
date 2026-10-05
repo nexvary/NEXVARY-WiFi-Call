@@ -45,7 +45,11 @@ class PairingQrScreenTest {
         show(PairingQrScanner { PairingScanResult.Scanned(payload) })
         compose.onNodeWithTag("gateway-scan").performScrollTo().performClick()
         compose.onNodeWithTag("gateway-url").assertTextContains("https://3.65.234.184:8443")
-        compose.onNodeWithTag("gateway-code").assertTextContains(code)
+        // Password fields expose masked editable text to accessibility/test semantics.
+        // Verify that scanning filled it without exposing the pairing secret.
+        compose.onNodeWithTag("gateway-code")
+            .assertTextContains("\u2022".repeat(code.length))
+            .assert(SemanticsMatcher.keyIsDefined(androidx.compose.ui.semantics.SemanticsProperties.Password))
         compose.onNodeWithTag("gateway-pair").assertIsEnabled()
         compose.onNodeWithTag("gateway-send").assertDoesNotExist()
         compose.onNodeWithTag("gateway-message").assertTextEquals(context.getString(R.string.gateway_qr_ready))
