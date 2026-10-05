@@ -5,10 +5,12 @@ import android.graphics.Bitmap
 import android.os.LocaleList
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.Density
 import androidx.test.platform.app.InstrumentationRegistry
 import com.nexvary.wificall.R
 import com.nexvary.wificall.core.SubscriptionRef
@@ -37,7 +39,12 @@ class NavigationTest(private val language: String) {
         var refreshes = 0
         var permissions = 0
         compose.setContent {
-            CompositionLocalProvider(LocalContext provides context, LocalLayoutDirection provides if (language == "ar") LayoutDirection.Rtl else LayoutDirection.Ltr) {
+            val density = LocalDensity.current
+            CompositionLocalProvider(
+                LocalContext provides context,
+                LocalDensity provides Density(density.density, fontScale = 1.3f),
+                LocalLayoutDirection provides if (language == "ar") LayoutDirection.Rtl else LayoutDirection.Ltr
+            ) {
                 NexvaryTheme {
                     WifiCallApp(initial = DemoState.value.copy(phonePermissionRequired = true), onRefresh = { refreshes++ }, onRequestPhonePermission = { permissions++ })
                 }
