@@ -118,7 +118,10 @@ def failure_diagnostics(result, sensitive_values):
     # Still redact known in-memory fixtures and token/hash-shaped strings before
     # printing bounded diagnostics so a CI failure can be diagnosed from evidence.
     journal = command(['sudo', '-n', 'journalctl', '-u', SERVICE, '-n', '35', '--no-pager'])
-    output = result.stdout + result.stderr + b'\nPanel service journal:\n' + journal.stdout + journal.stderr
+    modes = command(['sudo', '-n', 'stat', '-c', '%a %U:%G %n', str(APP), str(UNIT),
+                     str(APP / '.nexvary-panel-owned'), str(APP / '.nexvary-panel-unit-sha256')])
+    output = (result.stdout + result.stderr + b'\nOwned installation modes:\n' + modes.stdout + modes.stderr
+              + b'\nPanel service journal:\n' + journal.stdout + journal.stderr)
     text = output.decode('utf-8', errors='replace')
     for value in sensitive_values:
         if value:

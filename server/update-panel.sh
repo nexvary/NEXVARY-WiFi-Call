@@ -52,7 +52,7 @@ done
 for path in "$app_dir" "$unit_file" "$app_dir/.nexvary-panel-owned" "$app_dir/.nexvary-panel-unit-sha256"; do
   [[ ! -L "$path" && $(stat -c %u "$path") == 0 ]] || { printf 'Install ownership is not root-controlled; refusing.\n' >&2; exit 1; }
   permissions=$(stat -c %a "$path")
-  (( (8#$permissions & 8#022) == 0 )) || { printf 'Install path is writable by non-root accounts; refusing.\n' >&2; exit 1; }
+  (( (8#$permissions & 8#022) == 0 )) || { printf 'Install path %s has mode %s and is writable by non-root accounts; refusing.\n' "$path" "$permissions" >&2; exit 1; }
 done
 [[ $(cat "$app_dir/.nexvary-panel-owned") == 'NEXVARY admin panel install v1' ]] || { printf 'Ownership marker mismatch; refusing.\n' >&2; exit 1; }
 [[ $(cat "$app_dir/.nexvary-panel-unit-sha256") == $(sha256sum "$unit_file" | awk '{print $1}') ]] || { printf 'Unit changed since installation; inspect before updating.\n' >&2; exit 1; }
