@@ -84,6 +84,9 @@ class NavigationTest(private val language: String) {
         compose.onNodeWithTag("lab-mode-switch").performScrollTo().performClick()
         compose.onNodeWithText(text(R.string.technical_evidence)).performScrollTo().assertIsDisplayed()
         screenshot("diagnostics-lab")
+        compose.onNodeWithTag("diagnostics-audio").performScrollTo().performClick()
+        compose.onNodeWithTag("diagnostics-audio").performScrollTo().assertIsDisplayed()
+        screenshot("diagnostics-audio")
         compose.onNodeWithContentDescription(text(R.string.back)).performClick()
         compose.onNodeWithText(text(R.string.ready_title)).assertIsDisplayed()
         compose.onNodeWithTag("nav-sims").performClick()
@@ -106,7 +109,7 @@ class NavigationTest(private val language: String) {
         val base = InstrumentationRegistry.getInstrumentation().targetContext
         val locale = Locale.forLanguageTag(language)
         val context = base.createConfigurationContext(Configuration(base.resources.configuration).apply {
-            setLocales(LocaleList(locale)); setLayoutDirection(locale)
+            setLocales(LocaleList(locale)); setLayoutDirection(locale); fontScale = 1.3f
         })
         var chosen: Int? = null
         val sims = listOf(
@@ -114,7 +117,9 @@ class NavigationTest(private val language: String) {
             SubscriptionRef(29, 1, "Carrier B", null, null, null)
         )
         compose.setContent {
+            val density = LocalDensity.current
             CompositionLocalProvider(LocalContext provides context,
+                LocalDensity provides Density(density.density, fontScale = 1.3f),
                 LocalLayoutDirection provides if (language == "ar") LayoutDirection.Rtl else LayoutDirection.Ltr) {
                 var selected by remember { mutableStateOf<Int?>(null) }
                 NexvaryTheme {
@@ -126,6 +131,9 @@ class NavigationTest(private val language: String) {
         compose.onNodeWithTag("nav-sims").performClick()
         compose.onNodeWithTag("sim-29").performScrollTo().performClick()
         compose.runOnIdle { assertEquals(29, chosen) }
+        compose.waitForIdle()
+        Thread.sleep(300)
+        ScreenshotFiles.capture("$language-sims-selected")
         compose.onNodeWithTag("sim-11").performScrollTo().performClick()
         compose.runOnIdle { assertEquals(11, chosen) }
     }

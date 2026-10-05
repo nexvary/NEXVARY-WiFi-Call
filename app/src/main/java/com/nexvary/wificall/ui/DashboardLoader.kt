@@ -14,7 +14,7 @@ object DashboardLoader {
             is SubscriptionResult.Available -> subsResult.subscriptions
             else -> emptyList()
         }
-        val selected = subs.firstOrNull { it.id == selectedSubscriptionId } ?: subs.singleOrNull()
+        val selected = SubscriptionSelection.resolve(subs, selectedSubscriptionId)
         val permissionRestricted = subsResult is SubscriptionResult.PermissionRequired
         val input = ReadinessInput(network = network, simSelected = selected != null,
             platformRestricted = permissionRestricted, nativeVerified = false,

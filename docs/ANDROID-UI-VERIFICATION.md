@@ -26,7 +26,8 @@ The UI jobs use Android API 35 on Pixel 2 and Nexus 5 profiles. They exercise:
 
 - Navigation, refresh, permission actions and in-app Back in all seven languages.
 - A font scale of 1.3 and scroll access to lower cards and controls.
-- Two actual subscription IDs in the SIM selector callback.
+- Two distinct fixture subscription IDs in the SIM selector callback, with selected-card
+  screenshots in all seven languages at font scale 1.3.
 - Language changes and persistence through real activity recreation, including
   framework locale selection and Arabic layout direction.
 - Installed launcher entry resolution, adaptive icon loading and launcher start.
@@ -43,7 +44,8 @@ launcher entry's actual APK resource, rather than a source asset preview.
 ## Visual review
 
 Download each profile's UI-verification artifact and inspect Home, SIMs,
-Diagnostics, More and About in the seven locales, plus actual-activity Arabic
+Diagnostics (including Lab and expanded Audio), More and About in the seven
+locales, including selected SIM cards, plus actual-activity Arabic
 and English Home, landscape/portrait and installed launcher icon images.
 Review text clipping, spacing, contrast, navigation/system bars and RTL values.
 Automated click tests and image production alone do not certify visual quality;

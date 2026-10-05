@@ -1,6 +1,7 @@
 package com.nexvary.wificall.platform
 
 import android.Manifest
+import android.os.Build
 import android.content.Context
 import android.content.pm.PackageManager
 import android.telephony.SubscriptionManager
@@ -24,8 +25,8 @@ class AndroidSubscriptionProbe(private val context: Context) {
                     id = it.subscriptionId,
                     slotIndex = it.simSlotIndex,
                     carrierName = it.carrierName?.toString(),
-                    mcc = it.mccString,
-                    mnc = it.mncString,
+                    mcc = if (Build.VERSION.SDK_INT >= 29) it.mccString else null,
+                    mnc = if (Build.VERSION.SDK_INT >= 29) it.mncString else null,
                     countryIso = it.countryIso?.uppercase()
                 )
             }
