@@ -45,10 +45,11 @@ class NavigationTest(private val language: String) {
         }
         fun screenshot(name: String) {
             compose.waitForIdle()
-            val bitmap = checkNotNull(instrumentation.uiAutomation.takeScreenshot())
-            val file = File(base.getExternalFilesDir("screenshots"), "$language-$name.png")
-            file.parentFile!!.mkdirs()
-            file.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+            android.os.ParcelFileDescriptor.AutoCloseInputStream(
+                instrumentation.uiAutomation.executeShellCommand(
+                    "mkdir -p /sdcard/Download/NEXVARY-WiFi-Call-screenshots && screencap -p /sdcard/Download/NEXVARY-WiFi-Call-screenshots/$language-$name.png"
+                )
+            ).use { it.readBytes() }
         }
         compose.onNodeWithText(text(R.string.ready_title)).assertIsDisplayed()
         screenshot("home")
