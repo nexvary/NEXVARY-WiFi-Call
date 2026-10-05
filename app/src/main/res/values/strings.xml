@@ -141,7 +141,7 @@
     <string name="gateway_sending">Sending…</string>
     <string name="gateway_sent">Diagnostic snapshot delivered</string>
     <string name="gateway_disconnect">Disconnect gateway</string>
-    <string name="gateway_privacy">Only SIM count and selected slot, network state, app and Android versions, and Phone-as-SIM capability are sent. SIM identities and authentication secrets are excluded.</string>
+    <string name="gateway_privacy">Diagnostic reports contain only SIM count and selected slot, network state, app and Android versions, and Phone-as-SIM capability. SIM identities and authentication secrets are excluded from reports. The separate AKA session sends temporary authentication responses only with explicit consent.</string>
     <string name="gateway_error_url">Enter a valid HTTPS gateway URL.</string>
     <string name="gateway_error_pair">Pairing failed. Check the URL and code, then try again.</string>
     <string name="gateway_error_send">Snapshot could not be delivered. Check the gateway connection.</string>

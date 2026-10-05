@@ -141,7 +141,7 @@
     <string name="gateway_sending">Wird gesendet…</string>
     <string name="gateway_sent">Diagnoseübersicht zugestellt</string>
     <string name="gateway_disconnect">Gateway trennen</string>
-    <string name="gateway_privacy">Es werden nur die SIM-Anzahl und der ausgewählte Steckplatz, der Netzwerkstatus, die App- und Android-Versionen sowie die Eignung des Telefons als SIM gesendet. SIM-Kennungen und Authentifizierungsgeheimnisse werden nicht übertragen.</string>
+    <string name="gateway_privacy">Diagnoseberichte enthalten nur die SIM-Anzahl und den ausgewählten Steckplatz, den Netzwerkstatus, die App- und Android-Versionen sowie die Eignung des Telefons als SIM. SIM-Kennungen und Authentifizierungsgeheimnisse sind von den Berichten ausgeschlossen. Die separate AKA-Sitzung sendet temporäre Authentifizierungsantworten nur mit ausdrücklicher Zustimmung.</string>
     <string name="gateway_error_url">Gib eine gültige HTTPS-URL für das Gateway ein.</string>
     <string name="gateway_error_pair">Kopplung fehlgeschlagen. Prüfe die URL und den Code und versuche es erneut.</string>
     <string name="gateway_error_send">Die Übersicht konnte nicht zugestellt werden. Prüfe die Verbindung zum Gateway.</string>

@@ -141,7 +141,7 @@
     <string name="gateway_sending">Gönderiliyor…</string>
     <string name="gateway_sent">Tanılama özeti iletildi</string>
     <string name="gateway_disconnect">Ağ geçidi bağlantısını kes</string>
-    <string name="gateway_privacy">Yalnızca SIM sayısı ve seçilen yuva, ağ durumu, uygulama ve Android sürümleri ile telefonun SIM olarak kullanılabilirliği gönderilir. SIM tanımlayıcıları ve kimlik doğrulama sırları gönderilmez.</string>
+    <string name="gateway_privacy">Tanılama raporları yalnızca SIM sayısı ve seçilen yuva, ağ durumu, uygulama ve Android sürümleri ile telefonun SIM olarak kullanılabilirliğini içerir. SIM tanımlayıcıları ve kimlik doğrulama sırları raporlara dahil edilmez. Ayrı AKA oturumu, geçici kimlik doğrulama yanıtlarını yalnızca açık onayla gönderir.</string>
     <string name="gateway_error_url">Geçerli bir HTTPS ağ geçidi adresi girin.</string>
     <string name="gateway_error_pair">Eşleştirme başarısız oldu. Adresi ve kodu kontrol edip yeniden deneyin.</string>
     <string name="gateway_error_send">Özet iletilemedi. Ağ geçidi bağlantısını kontrol edin.</string>

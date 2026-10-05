@@ -141,7 +141,7 @@
     <string name="gateway_sending">Envoi en cours…</string>
     <string name="gateway_sent">Résumé de diagnostic livré</string>
     <string name="gateway_disconnect">Déconnecter la passerelle</string>
-    <string name="gateway_privacy">Seuls le nombre de SIM et le logement sélectionné, l’état du réseau, les versions de l’application et d’Android et la capacité du téléphone comme SIM sont envoyés. Les identifiants des SIM et les secrets d’authentification sont exclus.</string>
+    <string name="gateway_privacy">Les rapports de diagnostic contiennent uniquement le nombre de SIM et le logement sélectionné, l’état du réseau, les versions de l’application et d’Android et la capacité du téléphone comme SIM. Les identifiants des SIM et les secrets d’authentification sont exclus des rapports. La session AKA distincte envoie des réponses d’authentification temporaires uniquement avec un consentement explicite.</string>
     <string name="gateway_error_url">Saisissez une URL HTTPS valide pour la passerelle.</string>
     <string name="gateway_error_pair">L’association a échoué. Vérifiez l’URL et le code, puis réessayez.</string>
     <string name="gateway_error_send">Le résumé n’a pas pu être livré. Vérifiez la connexion à la passerelle.</string>

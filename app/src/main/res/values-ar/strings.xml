@@ -141,7 +141,7 @@
     <string name="gateway_sending">جارٍ الإرسال…</string>
     <string name="gateway_sent">تم تسليم ملخص التشخيص</string>
     <string name="gateway_disconnect">قطع الاتصال بالبوابة</string>
-    <string name="gateway_privacy">لا يُرسل إلا عدد الشرائح والمنفذ المحدد وحالة الشبكة وإصدارا التطبيق وأندرويد وإمكانية استخدام الهاتف كشريحة. لا تُرسل معرّفات الشرائح أو أسرار المصادقة.</string>
+    <string name="gateway_privacy">لا تتضمن تقارير التشخيص إلا عدد الشرائح والمنفذ المحدد وحالة الشبكة وإصدارَي التطبيق وأندرويد وإمكانية استخدام الهاتف كشريحة. تُستبعد معرّفات الشرائح وأسرار المصادقة من التقارير. تُرسل جلسة AKA المنفصلة استجابات مصادقة مؤقتة فقط بموافقة صريحة.</string>
     <string name="gateway_error_url">أدخل رابط HTTPS صالحًا للبوابة.</string>
     <string name="gateway_error_pair">فشل الربط. تحقق من الرابط والرمز ثم أعد المحاولة.</string>
     <string name="gateway_error_send">تعذّر تسليم الملخص. تحقق من الاتصال بالبوابة.</string>

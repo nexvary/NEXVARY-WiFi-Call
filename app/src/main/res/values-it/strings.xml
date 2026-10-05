@@ -141,7 +141,7 @@
     <string name="gateway_sending">Invio in corso…</string>
     <string name="gateway_sent">Riepilogo diagnostico consegnato</string>
     <string name="gateway_disconnect">Disconnetti gateway</string>
-    <string name="gateway_privacy">Vengono inviati solo il numero di SIM e lo slot selezionato, lo stato della rete, le versioni dell’app e di Android e la capacità del telefono come SIM. Sono esclusi gli identificativi delle SIM e i segreti di autenticazione.</string>
+    <string name="gateway_privacy">I rapporti diagnostici contengono solo il numero di SIM e lo slot selezionato, lo stato della rete, le versioni dell’app e di Android e la capacità del telefono come SIM. Gli identificativi delle SIM e i segreti di autenticazione sono esclusi dai rapporti. La sessione AKA separata invia risposte di autenticazione temporanee solo con consenso esplicito.</string>
     <string name="gateway_error_url">Inserisci un URL HTTPS valido per il gateway.</string>
     <string name="gateway_error_pair">Associazione non riuscita. Verifica l’URL e il codice, quindi riprova.</string>
     <string name="gateway_error_send">Impossibile consegnare il riepilogo. Verifica la connessione al gateway.</string>

@@ -141,7 +141,7 @@
     <string name="gateway_sending">Enviando…</string>
     <string name="gateway_sent">Resumen de diagnóstico entregado</string>
     <string name="gateway_disconnect">Desconectar pasarela</string>
-    <string name="gateway_privacy">Solo se envían el número de SIM y la ranura seleccionada, el estado de la red, las versiones de la aplicación y Android y la capacidad del teléfono como SIM. Se excluyen los identificadores de las SIM y los secretos de autenticación.</string>
+    <string name="gateway_privacy">Los informes de diagnóstico solo contienen el número de SIM y la ranura seleccionada, el estado de la red, las versiones de la aplicación y Android y la capacidad del teléfono como SIM. Los identificadores de las SIM y los secretos de autenticación se excluyen de los informes. La sesión AKA separada envía respuestas de autenticación temporales solo con consentimiento explícito.</string>
     <string name="gateway_error_url">Introduce una URL HTTPS válida para la pasarela.</string>
     <string name="gateway_error_pair">No se pudo vincular. Comprueba la URL y el código e inténtalo de nuevo.</string>
     <string name="gateway_error_send">No se pudo entregar el resumen. Comprueba la conexión con la pasarela.</string>
