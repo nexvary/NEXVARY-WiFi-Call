@@ -3,6 +3,9 @@ package com.nexvary.wificall.ui
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -21,6 +24,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.text.style.TextOverflow
@@ -55,15 +59,32 @@ import com.nexvary.wificall.platform.PhoneAsSimCapability
             actions = { IconButton(onClick = onRefresh) { Icon(Icons.Default.Refresh, stringResource(R.string.refresh_check)) } },
             colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
         ) },
-        bottomBar = { NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
-            tabs.forEach { destination -> NavigationBarItem(
-                modifier = Modifier.testTag("nav-${destination.name.lowercase()}"),
-                selected = page == destination || (page !in tabs && returnPage == destination),
-                onClick = { page = destination; returnPage = AppPage.HOME },
-                icon = { Icon(destination.icon(), null, Modifier.size(24.dp)) },
-                label = { Text(stringResource(if (destination == AppPage.SETTINGS) R.string.more else destination.title()), style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis) }
-            ) }
-        } }
+        bottomBar = {
+            Surface(color = MaterialTheme.colorScheme.surface) {
+                Row(Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.navigationBars)) {
+                    tabs.forEach { destination ->
+                        val selected = page == destination || (page !in tabs && returnPage == destination)
+                        Column(
+                            modifier = Modifier.weight(1f).heightIn(min = 80.dp)
+                                .testTag("nav-${destination.name.lowercase()}")
+                                .selectable(selected = selected, role = Role.Tab, onClick = { page = destination; returnPage = AppPage.HOME })
+                                .padding(horizontal = 4.dp, vertical = 8.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Box(Modifier.size(width = 56.dp, height = 32.dp)
+                                .background(if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent, RoundedCornerShape(16.dp)), contentAlignment = Alignment.Center) {
+                                Icon(destination.icon(), null, Modifier.size(24.dp), tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            Spacer(Modifier.height(4.dp))
+                            Text(stringResource(if (destination == AppPage.SETTINGS) R.string.more else destination.title()),
+                                style = MaterialTheme.typography.labelSmall, maxLines = 2,
+                                color = if (selected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+            }
+        }
     ) { padding -> key(page) { Page(Modifier.padding(padding)) {
         when (page) {
             AppPage.HOME -> {
