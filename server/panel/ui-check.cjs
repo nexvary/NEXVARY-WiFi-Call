@@ -6,7 +6,7 @@ const { randomBytes } = require('node:crypto');
 const fs = require('node:fs/promises');
 const os = require('node:os');
 const path = require('node:path');
-const { chromium } = require('playwright');
+const { chromium, request } = require('playwright');
 
 async function startPanel(stateDirectory) {
   const code = [
@@ -102,13 +102,66 @@ async function assertNoHorizontalOverflow(page) {
       await refreshed;
       await page.locator('#refreshState').filter({ hasText: 'آخر تحديث:' }).waitFor();
       assert.equal(await page.locator('#refresh').isEnabled(), true);
+      // A separate API context imitates the phone: no admin session cookie.
+      await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: panel.url });
+      const phone = await request.newContext({ baseURL: panel.url });
+      try {
+        await page.locator('#createPairing').click();
+        await waitVisible(page.locator('#pairingBox'));
+        const pairingCode = await page.locator('#pairingCode').textContent();
+        assert(pairingCode && pairingCode.length > 0);
+        await page.locator('#copyPairing').click();
+        await page.locator('#pairingMessage').filter({ hasText: 'تم نسخ رمز الربط.' }).waitFor();
+        assert.equal(await page.evaluate(() => navigator.clipboard.readText()), pairingCode);
+        // Force the fallback clipboard branch as well as native Clipboard API success.
+        await page.evaluate(() => { window.ciClipboard = navigator.clipboard; Object.defineProperty(navigator, 'clipboard', { configurable: true, value: undefined }); });
+        await page.locator('#copyPairing').click();
+        await page.locator('#pairingMessage').filter({ hasText: 'تم نسخ رمز الربط.' }).waitFor();
+        assert.equal(await page.evaluate(() => window.ciClipboard.readText()), pairingCode);
+        const paired = await phone.post('/api/phone/pair', { data: { code: pairingCode } });
+        assert.equal(paired.status(), 200);
+        const auth = await paired.json();
+        assert(auth.device_id && auth.token);
+        const reuse = await phone.post('/api/phone/pair', { data: { code: pairingCode } });
+        assert([401, 403].includes(reuse.status()), 'Pairing code must be one-use');
+        await page.locator('#refresh').click();
+        await waitVisible(page.locator('#phones .pill[data-status="awaiting"]'));
+        const report = { schema_version: 1, sim_count: 2, selected_slot: 0, network: 'WIFI',
+          phone_as_sim: 'CARRIER_PRIVILEGE_REQUIRED', app_version: '0.4.0-alpha01', android_api: 35 };
+        const sent = await phone.post('/api/phone/report', { data: report, headers: { Authorization: `Bearer ${auth.token}` } });
+        assert.equal(sent.status(), 200);
+        await page.locator('#refresh').click();
+        const card = page.locator('#phones .phone-card');
+        await waitVisible(card.locator('.pill[data-status="online"]'));
+        assert.equal(await card.count(), 1);
+        assert((await card.textContent()).includes('0.4.0-alpha01'));
+        assert((await card.textContent()).includes('SIM 1'));
+        assert((await card.textContent()).includes('تحتاج إلى صلاحيات من شركة الاتصالات'));
+        assert(!(await page.content()).includes(auth.token), 'Phone bearer token must never enter the DOM');
+        assert.deepEqual(await page.locator('#stages .pill').allTextContents(), Array(8).fill('لم يُختبر'));
+        // Mark the synthetic phone data in the review artifact.
+        await page.evaluate(() => { const note = document.createElement('p'); note.id = 'ci-fixture-notice';
+          note.textContent = 'بيانات هاتف اختبار CI فقط — ليست نتيجة من هاتف المستخدم';
+          document.getElementById('phonesSection').prepend(note); });
+        await assertNoHorizontalOverflow(page);
+        await page.screenshot({ path: path.join(screenshotDirectory, `${name}-phone-report-ci-fixture.png`), fullPage: true });
+        // Exercise receipt-age status without claiming carrier readiness.
+        await page.evaluate(() => freshness(document.querySelector('#phones .pill'), Date.now() / 1000 - 121));
+        assert.equal(await card.locator('.pill').getAttribute('data-status'), 'stale');
+        assert.equal(await card.locator('.pill').textContent(), 'آخر تقرير قديم');
+        await card.locator('button[data-action="revoke"]').click();
+        await page.locator('#phonesMessage').filter({ hasText: 'أُلغي الربط.' }).waitFor();
+        assert.equal(await page.locator('#phones .phone-card').count(), 0);
+        const revoked = await phone.post('/api/phone/report', { data: report, headers: { Authorization: `Bearer ${auth.token}` } });
+        assert.equal(revoked.status(), 401, 'Revocation must reject further reports');
+      } finally { await phone.dispose(); }
       await page.locator('#logout').click();
       await waitVisible(page.locator('#login'));
       assert.equal(await page.locator('#dashboard').isVisible(), false);
       assert.equal((await context.request.get(`${panel.url}/api/status`)).status(), 401);
       assert.deepEqual(errors, [], 'Browser must not emit script errors');
       await context.close();
-      console.log(`PASS ${name}: login, metrics, 8 unverified stages, refresh, logout, viewport fit`);
+      console.log(`PASS ${name}: login, metrics, 8 unverified stages, refresh, pairing/report/revocation, logout, viewport fit`);
     }
   } finally {
     if (browser) await browser.close();

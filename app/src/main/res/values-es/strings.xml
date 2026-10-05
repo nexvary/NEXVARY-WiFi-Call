@@ -129,4 +129,26 @@
     <string name="check_in_progress">Comprobando la conexión y los permisos de la SIM</string>
     <string name="gateway_not_configured">No hay ninguna pasarela configurada</string>
     <string name="privacy_simple">Los secretos de tu SIM permanecen dentro de ella. Solo se lee la información de estado permitida.</string>
+    <string name="gateway_title">Vincular la pasarela</string>
+    <string name="gateway_intro">Vincula tu pasarela HTTPS para enviar un resumen de diagnóstico limitado. Esto no autentica la SIM ni habilita las llamadas.</string>
+    <string name="gateway_url">URL HTTPS de la pasarela</string>
+    <string name="gateway_code">Código de vinculación</string>
+    <string name="gateway_pair">Vincular pasarela</string>
+    <string name="gateway_pairing">Vinculando…</string>
+    <string name="gateway_paired">Pasarela vinculada</string>
+    <string name="gateway_disconnected">No hay ninguna pasarela vinculada</string>
+    <string name="gateway_send">Enviar resumen de diagnóstico</string>
+    <string name="gateway_sending">Enviando…</string>
+    <string name="gateway_sent">Resumen de diagnóstico entregado</string>
+    <string name="gateway_disconnect">Desconectar pasarela</string>
+    <string name="gateway_privacy">Solo se envían el número de SIM y la ranura seleccionada, el estado de la red, las versiones de la aplicación y Android y la capacidad del teléfono como SIM. Se excluyen los identificadores de las SIM y los secretos de autenticación.</string>
+    <string name="gateway_error_url">Introduce una URL HTTPS válida para la pasarela.</string>
+    <string name="gateway_error_pair">No se pudo vincular. Comprueba la URL y el código e inténtalo de nuevo.</string>
+    <string name="gateway_error_send">No se pudo entregar el resumen. Comprueba la conexión con la pasarela.</string>
+    <string name="gateway_code_required">Introduce el código de vinculación.</string>
+    <string name="gateway_endpoint">Pasarela</string>
+    <string name="gateway_disconnecting">Desconectando…</string>
+    <string name="gateway_error_disconnect">No se pudo desconectar la pasarela. Inténtalo de nuevo cuando esté disponible.</string>
+    <string name="gateway_error_storage">No se pudieron guardar o cargar las credenciales de la pasarela de forma segura. Vuelve a vincularla.</string>
+    <string name="gateway_invalid_code">Introduce el código válido proporcionado por la pasarela.</string>
 </resources>

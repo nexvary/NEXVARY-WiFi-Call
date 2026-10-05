@@ -129,4 +129,26 @@
     <string name="check_in_progress">Checking connection and SIM permissions</string>
     <string name="gateway_not_configured">No gateway configured</string>
     <string name="privacy_simple">Your SIM secrets stay inside your SIM. Only permitted status information is read.</string>
+    <string name="gateway_title">Gateway pairing</string>
+    <string name="gateway_intro">Pair with your HTTPS gateway to send a limited diagnostic snapshot. This does not authenticate the SIM or enable calls.</string>
+    <string name="gateway_url">HTTPS gateway URL</string>
+    <string name="gateway_code">Pairing code</string>
+    <string name="gateway_pair">Pair gateway</string>
+    <string name="gateway_pairing">Pairing…</string>
+    <string name="gateway_paired">Gateway paired</string>
+    <string name="gateway_disconnected">No gateway paired</string>
+    <string name="gateway_send">Send diagnostic snapshot</string>
+    <string name="gateway_sending">Sending…</string>
+    <string name="gateway_sent">Diagnostic snapshot delivered</string>
+    <string name="gateway_disconnect">Disconnect gateway</string>
+    <string name="gateway_privacy">Only SIM count and selected slot, network state, app and Android versions, and Phone-as-SIM capability are sent. SIM identities and authentication secrets are excluded.</string>
+    <string name="gateway_error_url">Enter a valid HTTPS gateway URL.</string>
+    <string name="gateway_error_pair">Pairing failed. Check the URL and code, then try again.</string>
+    <string name="gateway_error_send">Snapshot could not be delivered. Check the gateway connection.</string>
+    <string name="gateway_code_required">Enter the pairing code.</string>
+    <string name="gateway_endpoint">Gateway</string>
+    <string name="gateway_disconnecting">Disconnecting…</string>
+    <string name="gateway_error_disconnect">Gateway could not be disconnected. Try again when it is reachable.</string>
+    <string name="gateway_error_storage">Gateway credentials could not be saved or loaded securely. Pair again.</string>
+    <string name="gateway_invalid_code">Enter the valid code provided by the gateway.</string>
 </resources>

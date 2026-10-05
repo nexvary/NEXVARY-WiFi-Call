@@ -129,4 +129,26 @@
     <string name="check_in_progress">Verbindung und SIM-Berechtigungen werden geprüft</string>
     <string name="gateway_not_configured">Kein Gateway konfiguriert</string>
     <string name="privacy_simple">Die Geheimnisse deiner SIM bleiben in der SIM. Es werden nur erlaubte Statusinformationen gelesen.</string>
+    <string name="gateway_title">Gateway koppeln</string>
+    <string name="gateway_intro">Kopple dein HTTPS-Gateway, um eine begrenzte Diagnoseübersicht zu senden. Dadurch wird weder die SIM authentifiziert noch werden Anrufe aktiviert.</string>
+    <string name="gateway_url">HTTPS-URL des Gateways</string>
+    <string name="gateway_code">Kopplungscode</string>
+    <string name="gateway_pair">Gateway koppeln</string>
+    <string name="gateway_pairing">Wird gekoppelt…</string>
+    <string name="gateway_paired">Gateway gekoppelt</string>
+    <string name="gateway_disconnected">Kein Gateway gekoppelt</string>
+    <string name="gateway_send">Diagnoseübersicht senden</string>
+    <string name="gateway_sending">Wird gesendet…</string>
+    <string name="gateway_sent">Diagnoseübersicht zugestellt</string>
+    <string name="gateway_disconnect">Gateway trennen</string>
+    <string name="gateway_privacy">Es werden nur die SIM-Anzahl und der ausgewählte Steckplatz, der Netzwerkstatus, die App- und Android-Versionen sowie die Eignung des Telefons als SIM gesendet. SIM-Kennungen und Authentifizierungsgeheimnisse werden nicht übertragen.</string>
+    <string name="gateway_error_url">Gib eine gültige HTTPS-URL für das Gateway ein.</string>
+    <string name="gateway_error_pair">Kopplung fehlgeschlagen. Prüfe die URL und den Code und versuche es erneut.</string>
+    <string name="gateway_error_send">Die Übersicht konnte nicht zugestellt werden. Prüfe die Verbindung zum Gateway.</string>
+    <string name="gateway_code_required">Gib den Kopplungscode ein.</string>
+    <string name="gateway_endpoint">Gateway</string>
+    <string name="gateway_disconnecting">Wird getrennt…</string>
+    <string name="gateway_error_disconnect">Das Gateway konnte nicht getrennt werden. Versuche es erneut, sobald es erreichbar ist.</string>
+    <string name="gateway_error_storage">Die Gateway-Zugangsdaten konnten nicht sicher gespeichert oder geladen werden. Kopple es erneut.</string>
+    <string name="gateway_invalid_code">Gib den gültigen Code des Gateways ein.</string>
 </resources>

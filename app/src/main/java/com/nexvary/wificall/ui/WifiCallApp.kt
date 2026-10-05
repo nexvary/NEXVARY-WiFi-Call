@@ -115,16 +115,17 @@ import com.nexvary.wificall.platform.PhoneAsSimCapability
             AppPage.COMPATIBILITY -> { Metric(R.string.carrier_evidence, label(initial.evidence)); InfoCard(stringResource(R.string.compatibility_explanation)) }
             AppPage.PRIVACY -> { InfoCard(stringResource(R.string.privacy_simple)); InfoCard(stringResource(R.string.privacy_secrets)); InfoCard(stringResource(R.string.privacy_exports)) }
             AppPage.ABOUT -> AboutDeveloperScreen()
+            AppPage.GATEWAY -> GatewayScreen(initial)
             AppPage.SETTINGS -> {
                 ModeCard(mode) { mode = mode.toggle(); onModeChange(mode) }
                 LanguagePicker(language, onLanguageChange)
+                Action(R.string.gateway_title, Icons.Default.CloudSync) { open(AppPage.GATEWAY) }
                 Action(R.string.privacy, Icons.Default.PrivacyTip) { open(AppPage.PRIVACY) }
                 Action(R.string.about_developer, Icons.Default.Business) { open(AppPage.ABOUT) }
                 Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(stringResource(R.string.about_app), style = MaterialTheme.typography.titleMedium)
                     Text(stringResource(R.string.app_name), color = MaterialTheme.colorScheme.primary)
                     Text(stringResource(R.string.version) + " · " + BuildConfig.VERSION_NAME + " (" + BuildConfig.VERSION_CODE + ")", style = MaterialTheme.typography.bodyMedium.copy(textDirection = TextDirection.Ltr))
-                    Text(stringResource(R.string.gateway_not_configured), color = MaterialTheme.colorScheme.onSurfaceVariant)
                 } }
             }
         }
@@ -135,6 +136,7 @@ private fun AppPage.title() = when (this) {
     AppPage.HOME -> R.string.home; AppPage.SIMS -> R.string.sims; AppPage.CHANGES -> R.string.changes
     AppPage.DIAGNOSTICS -> R.string.diagnostics; AppPage.COMPATIBILITY -> R.string.compatibility
     AppPage.PRIVACY -> R.string.privacy; AppPage.ABOUT -> R.string.about_developer; AppPage.SETTINGS -> R.string.settings
+    AppPage.GATEWAY -> R.string.gateway_title
 }
 private fun AppPage.icon(): ImageVector = when (this) { AppPage.HOME -> Icons.Default.Home; AppPage.SIMS -> Icons.Default.SimCard; AppPage.DIAGNOSTICS -> Icons.Default.Troubleshoot; else -> Icons.Default.Settings }
 @Composable private fun Page(modifier: Modifier, body: @Composable ColumnScope.() -> Unit) {

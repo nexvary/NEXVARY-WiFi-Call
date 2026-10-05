@@ -129,4 +129,26 @@
     <string name="check_in_progress">Bağlantı ve SIM izinleri kontrol ediliyor</string>
     <string name="gateway_not_configured">Ağ geçidi yapılandırılmadı</string>
     <string name="privacy_simple">SIM sırlarınız SIM kartınızın içinde kalır. Yalnızca izin verilen durum bilgileri okunur.</string>
+    <string name="gateway_title">Ağ geçidini eşleştirme</string>
+    <string name="gateway_intro">Sınırlı bir tanılama özeti göndermek için HTTPS ağ geçidinizle eşleştirin. Bu işlem SIM kimlik doğrulaması yapmaz veya aramaları etkinleştirmez.</string>
+    <string name="gateway_url">HTTPS ağ geçidi adresi</string>
+    <string name="gateway_code">Eşleştirme kodu</string>
+    <string name="gateway_pair">Ağ geçidini eşleştir</string>
+    <string name="gateway_pairing">Eşleştiriliyor…</string>
+    <string name="gateway_paired">Ağ geçidi eşleştirildi</string>
+    <string name="gateway_disconnected">Eşleştirilmiş ağ geçidi yok</string>
+    <string name="gateway_send">Tanılama özetini gönder</string>
+    <string name="gateway_sending">Gönderiliyor…</string>
+    <string name="gateway_sent">Tanılama özeti iletildi</string>
+    <string name="gateway_disconnect">Ağ geçidi bağlantısını kes</string>
+    <string name="gateway_privacy">Yalnızca SIM sayısı ve seçilen yuva, ağ durumu, uygulama ve Android sürümleri ile telefonun SIM olarak kullanılabilirliği gönderilir. SIM tanımlayıcıları ve kimlik doğrulama sırları gönderilmez.</string>
+    <string name="gateway_error_url">Geçerli bir HTTPS ağ geçidi adresi girin.</string>
+    <string name="gateway_error_pair">Eşleştirme başarısız oldu. Adresi ve kodu kontrol edip yeniden deneyin.</string>
+    <string name="gateway_error_send">Özet iletilemedi. Ağ geçidi bağlantısını kontrol edin.</string>
+    <string name="gateway_code_required">Eşleştirme kodunu girin.</string>
+    <string name="gateway_endpoint">Ağ geçidi</string>
+    <string name="gateway_disconnecting">Bağlantı kesiliyor…</string>
+    <string name="gateway_error_disconnect">Ağ geçidi bağlantısı kesilemedi. Erişilebilir olduğunda yeniden deneyin.</string>
+    <string name="gateway_error_storage">Ağ geçidi kimlik bilgileri güvenli şekilde kaydedilemedi veya yüklenemedi. Yeniden eşleştirin.</string>
+    <string name="gateway_invalid_code">Ağ geçidinin verdiği geçerli kodu girin.</string>
 </resources>

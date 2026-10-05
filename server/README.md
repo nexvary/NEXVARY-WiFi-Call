@@ -2,7 +2,7 @@
 
 ## Admin panel
 
-The first admin panel is implemented: password login, live host resources, refresh/logout, and eight truthful untested carrier stages. It is a read-only monitoring panel; no gateway or Android adapter has been deployed.
+The admin panel supports password login, live host resources, one-use phone pairing, sanitized diagnostic reports and revocation. The Android app uses the same contract. No VoWiFi protocol engine has been deployed; the eight carrier stages remain untested. See [phone/panel pairing](../docs/GATEWAY-PAIRING.md).
 
 ```bash
 bash server/preflight.sh

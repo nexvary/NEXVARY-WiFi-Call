@@ -129,4 +129,26 @@
     <string name="check_in_progress">جارٍ فحص الاتصال وصلاحيات الشريحة</string>
     <string name="gateway_not_configured">لم تُعَدّ بوابة بعد</string>
     <string name="privacy_simple">تبقى أسرار شريحتك داخلها. لا تُقرأ إلا معلومات الحالة المسموح بها.</string>
+    <string name="gateway_title">ربط البوابة</string>
+    <string name="gateway_intro">اربط التطبيق ببوابتك عبر HTTPS لإرسال ملخص تشخيصي محدود. هذا لا يُجري مصادقة الشريحة ولا يفعّل المكالمات.</string>
+    <string name="gateway_url">رابط بوابة HTTPS</string>
+    <string name="gateway_code">رمز الربط</string>
+    <string name="gateway_pair">ربط البوابة</string>
+    <string name="gateway_pairing">جارٍ الربط…</string>
+    <string name="gateway_paired">تم ربط البوابة</string>
+    <string name="gateway_disconnected">لم يتم ربط بوابة</string>
+    <string name="gateway_send">إرسال ملخص التشخيص</string>
+    <string name="gateway_sending">جارٍ الإرسال…</string>
+    <string name="gateway_sent">تم تسليم ملخص التشخيص</string>
+    <string name="gateway_disconnect">قطع الاتصال بالبوابة</string>
+    <string name="gateway_privacy">لا يُرسل إلا عدد الشرائح والمنفذ المحدد وحالة الشبكة وإصدارا التطبيق وأندرويد وإمكانية استخدام الهاتف كشريحة. لا تُرسل معرّفات الشرائح أو أسرار المصادقة.</string>
+    <string name="gateway_error_url">أدخل رابط HTTPS صالحًا للبوابة.</string>
+    <string name="gateway_error_pair">فشل الربط. تحقق من الرابط والرمز ثم أعد المحاولة.</string>
+    <string name="gateway_error_send">تعذّر تسليم الملخص. تحقق من الاتصال بالبوابة.</string>
+    <string name="gateway_code_required">أدخل رمز الربط.</string>
+    <string name="gateway_endpoint">البوابة</string>
+    <string name="gateway_disconnecting">جارٍ قطع الاتصال…</string>
+    <string name="gateway_error_disconnect">تعذّر قطع الاتصال بالبوابة. أعد المحاولة عندما تكون متاحة.</string>
+    <string name="gateway_error_storage">تعذّر حفظ بيانات اعتماد البوابة أو تحميلها بأمان. أعد الربط.</string>
+    <string name="gateway_invalid_code">أدخل الرمز الصالح الذي توفره البوابة.</string>
 </resources>

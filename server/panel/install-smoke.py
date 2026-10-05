@@ -90,7 +90,7 @@ def install_interactively(password):
         os.close(master)
 
 
-def request(path, *, body=None, cookie=None):
+def request(path, *, body=None, cookie=None, token=None):
     headers = {}
     data = None
     if body is not None:
@@ -99,6 +99,8 @@ def request(path, *, body=None, cookie=None):
         data = json.dumps(body).encode()
     if cookie:
         headers['Cookie'] = cookie
+    if token:
+        headers['Authorization'] = 'Bearer ' + token
     req = urllib.request.Request(BASE + path, data=data, headers=headers)
     with urllib.request.urlopen(req, timeout=5) as response:
         return response.status, json.loads(response.read()), response.headers.get('Set-Cookie')
@@ -133,6 +135,7 @@ def main():
     cleaned = False
     try:
         install_interactively(password)
+        require((APP / 'phone_store.py').is_file(), 'Installed phone-store dependency is missing.')
         require(command(['systemctl', 'is-active', '--quiet', SERVICE]).returncode == 0,
                 'Installed panel service is not active.')
         user = command(['systemctl', 'show', '-p', 'User', '--value', SERVICE])
@@ -167,9 +170,35 @@ def main():
         stages = inventory.get('stages', [])
         require(len(stages) == 8 and all(stage['status'] == 'not_tested' and stage['evidence'] is None for stage in stages),
                 'Untested carrier stages must retain no fabricated evidence.')
+        phone_permissions = command(['sudo', '-n', 'stat', '-c', '%a:%U:%G', str(STATE / 'phones.sqlite3')])
+        require(phone_permissions.stdout.decode().strip() == f'600:{USER}:{USER}',
+                'Phone-store database permissions/ownership are incorrect.')
         permissions = command(['sudo', '-n', 'stat', '-c', '%a:%U:%G', str(STATE / 'password.json')])
         require(permissions.stdout.decode().strip() == f'600:{USER}:{USER}', 'Password state permissions/ownership are incorrect.')
         before = state_digest()
+        admin_cookie = cookie.split(';', 1)[0]
+        _, pairing, _ = request('/api/admin/pairing', body={}, cookie=admin_cookie)
+        _, phone, _ = request('/api/phone/pair', body={'code': pairing['code']})
+        report = dict(schema_version=1, sim_count=1, selected_slot=0, network='WIFI',
+                      phone_as_sim='CARRIER_PRIVILEGE_REQUIRED', app_version='0.3.0-alpha01', android_api=35)
+        _, received, _ = request('/api/phone/report', body=report, token=phone['token'])
+        require(received.get('ok') is True, 'Pre-update phone report failed.')
+        _, devices_before, _ = request('/api/admin/devices', cookie=admin_cookie)
+        require(len(devices_before['devices']) == 1 and devices_before['devices'][0]['report'] == report,
+                'Pre-update phone report was not persisted.')
+        updated = command(['sudo', '-n', 'bash', 'server/update-panel.sh', '--update'], timeout=60)
+        require(updated.returncode == 0, 'Owned panel upgrade failed; output was withheld.')
+        require(command(['systemctl', 'is-active', '--quiet', SERVICE]).returncode == 0,
+                'Updated panel service is not active.')
+        require(state_digest() == before, 'Upgrade changed the original password state.')
+        _, login_after, cookie_after = request('/api/login', body={'password': password})
+        require(login_after.get('ok') is True and cookie_after is not None,
+                'The original password no longer authenticates after upgrade.')
+        _, devices_after, _ = request('/api/admin/devices', cookie=cookie_after.split(';', 1)[0])
+        require(devices_after == devices_before, 'Upgrade changed or discarded existing phone reports.')
+        _, reported_again, _ = request('/api/phone/report', body=report, token=phone['token'])
+        require(reported_again.get('ok') is True, 'The phone credential did not survive upgrade.')
+        database_hash = command(['sudo', '-n', 'sha256sum', str(STATE / 'phones.sqlite3')]).stdout.split()[0]
         archive_owned()
         cleaned = True
         require(command(['systemctl', 'is-active', '--quiet', SERVICE]).returncode != 0,
@@ -177,7 +206,9 @@ def main():
         require(not APP.exists() and not UNIT.exists(), 'Owned application/unit was not archived.')
         require(STATE.is_dir() and state_digest() == before, 'Uninstall must preserve the original password state.')
         require(command(['getent', 'passwd', USER]).returncode == 0, 'Uninstall must preserve the service account.')
-        print('Ubuntu 24.04 install, loopback health, authenticated inventory, unprivileged service, and preserving uninstall passed.')
+        require(command(['sudo', '-n', 'sha256sum', str(STATE / 'phones.sqlite3')]).stdout.split()[0] == database_hash,
+                'Uninstall changed the phone database.')
+        print('Ubuntu 24.04 install, loopback health, authenticated inventory, unprivileged service, password/report-preserving update, and preserving uninstall passed.')
     finally:
         # The initial existing-path guard establishes that this run owns any install.
         # On a failed assertion, stop only the marker/checksum-validated owned service.

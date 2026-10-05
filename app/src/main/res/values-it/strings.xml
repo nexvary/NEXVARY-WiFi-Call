@@ -129,4 +129,26 @@
     <string name="check_in_progress">Verifica della connessione e dei permessi della SIM</string>
     <string name="gateway_not_configured">Nessun gateway configurato</string>
     <string name="privacy_simple">I segreti della SIM rimangono al suo interno. Vengono lette solo le informazioni di stato consentite.</string>
+    <string name="gateway_title">Associazione del gateway</string>
+    <string name="gateway_intro">Associa il tuo gateway HTTPS per inviare un riepilogo diagnostico limitato. Questa operazione non autentica la SIM né abilita le chiamate.</string>
+    <string name="gateway_url">URL HTTPS del gateway</string>
+    <string name="gateway_code">Codice di associazione</string>
+    <string name="gateway_pair">Associa gateway</string>
+    <string name="gateway_pairing">Associazione in corso…</string>
+    <string name="gateway_paired">Gateway associato</string>
+    <string name="gateway_disconnected">Nessun gateway associato</string>
+    <string name="gateway_send">Invia riepilogo diagnostico</string>
+    <string name="gateway_sending">Invio in corso…</string>
+    <string name="gateway_sent">Riepilogo diagnostico consegnato</string>
+    <string name="gateway_disconnect">Disconnetti gateway</string>
+    <string name="gateway_privacy">Vengono inviati solo il numero di SIM e lo slot selezionato, lo stato della rete, le versioni dell’app e di Android e la capacità del telefono come SIM. Sono esclusi gli identificativi delle SIM e i segreti di autenticazione.</string>
+    <string name="gateway_error_url">Inserisci un URL HTTPS valido per il gateway.</string>
+    <string name="gateway_error_pair">Associazione non riuscita. Verifica l’URL e il codice, quindi riprova.</string>
+    <string name="gateway_error_send">Impossibile consegnare il riepilogo. Verifica la connessione al gateway.</string>
+    <string name="gateway_code_required">Inserisci il codice di associazione.</string>
+    <string name="gateway_endpoint">Gateway</string>
+    <string name="gateway_disconnecting">Disconnessione in corso…</string>
+    <string name="gateway_error_disconnect">Impossibile disconnettere il gateway. Riprova quando è raggiungibile.</string>
+    <string name="gateway_error_storage">Impossibile salvare o caricare in modo sicuro le credenziali del gateway. Ripeti l’associazione.</string>
+    <string name="gateway_invalid_code">Inserisci il codice valido fornito dal gateway.</string>
 </resources>

@@ -10,6 +10,8 @@ from pathlib import Path
 import secrets
 import threading
 import time
+from urllib.parse import urlsplit
+from phone_store import PhoneStore
 from http import cookies
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -40,12 +42,35 @@ def snapshot():
 
 class PanelServer(ThreadingHTTPServer):
     daemon_threads = True
-    def __init__(self, address, state_dir):
+    def __init__(self, address, state_dir, public_origin=None):
         self.credentials = json.loads((Path(state_dir) / 'password.json').read_text())
+        if public_origin:
+            parsed = urlsplit(public_origin)
+            if parsed.scheme != 'https' or not parsed.hostname or parsed.username or parsed.password or parsed.path or parsed.query or parsed.fragment:
+                raise ValueError('Public origin must be an HTTPS origin without a path.')
+        self.public_origin = public_origin
+        self.phone_store = PhoneStore(state_dir)
+        self.phone_attempts = []
         self.sessions = {}
         self.attempts = []
         self.lock = threading.Lock()
+        self.worker_slots = threading.BoundedSemaphore(16)
         super().__init__(address, Handler)
+
+    def process_request(self, request, client_address):
+        if not self.worker_slots.acquire(blocking=False):
+            self.shutdown_request(request)
+            return
+        try:
+            super().process_request(request, client_address)
+        except Exception:
+            self.worker_slots.release()
+            raise
+    def process_request_thread(self, request, client_address):
+        try:
+            super().process_request_thread(request, client_address)
+        finally:
+            self.worker_slots.release()
 
 class Handler(BaseHTTPRequestHandler):
     server_version = 'NEXVARY'
@@ -90,17 +115,74 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply(200, Path(__file__).with_name('index.html').read_bytes(), 'text/html; charset=utf-8')
         if self.path == '/healthz':
             return self.reply(200, {'panel': 'ok', 'gateway_verified': False})
+        if self.path == '/api/admin/devices':
+            if not self.session():
+                return self.reply(401, {'error': 'login_required'})
+            return self.reply(200, {'devices': self.server.phone_store.list_devices()})
         if self.path == '/api/status':
             if not self.session():
                 return self.reply(401, {'error': 'login_required'})
             return self.reply(200, snapshot())
         self.reply(404, {'error': 'not_found'})
+    def read_json(self):
+        length = int(self.headers.get('Content-Length', '0'))
+        if not 0 < length <= 4096 or self.headers.get('Content-Type', '').split(';', 1)[0].strip() != 'application/json':
+            raise ValueError('Invalid request.')
+        data = json.loads(self.rfile.read(length))
+        if not isinstance(data, dict):
+            raise ValueError('Invalid request.')
+        return data
+    def phone_request(self):
+        try:
+            data = self.read_json()
+            if self.path == '/api/phone/pair':
+                with self.server.lock:
+                    now = time.time()
+                    self.server.phone_attempts = [x for x in self.server.phone_attempts if now - x < 60]
+                    if len(self.server.phone_attempts) >= 20:
+                        return self.reply(429, {'error': 'try_later'})
+                    self.server.phone_attempts.append(now)
+                if set(data) != {'code'}:
+                    raise ValueError()
+                return self.reply(200, self.server.phone_store.pair(data['code']))
+            header = self.headers.get('Authorization', '')
+            if not header.startswith('Bearer ') or len(header) > 256:
+                raise PermissionError()
+            token = header[7:]
+            if self.path == '/api/phone/report':
+                self.server.phone_store.report(token, data)
+                return self.reply(200, {'ok': True})
+            if self.path == '/api/phone/disconnect':
+                if data:
+                    raise ValueError()
+                # Authenticate through the store without accepting an arbitrary device ID.
+                self.server.phone_store.disconnect(token)
+                return self.reply(200, {'ok': True})
+            self.reply(404, {'error': 'not_found'})
+        except PermissionError:
+            self.reply(401, {'error': 'unauthorized'})
+        except (ValueError, TypeError, KeyError):
+            self.reply(400, {'error': 'invalid_request'})
     def do_POST(self):
         if not self.permitted_host():
             return self.reply(403, {'error': 'host'})
+        if self.path in ('/api/phone/pair', '/api/phone/report', '/api/phone/disconnect'):
+            return self.phone_request()
         expected = f'http://{self.headers.get("Host")}'
-        if self.headers.get('Origin') != expected:
+        if self.headers.get('Origin') not in {expected, self.server.public_origin} or not self.headers.get('Origin'):
             return self.reply(403, {'error': 'origin'})
+        if self.path in ('/api/admin/pairing', '/api/admin/revoke'):
+            if not self.session():
+                return self.reply(401, {'error': 'login_required'})
+            try:
+                data = self.read_json()
+                if self.path == '/api/admin/pairing' and not data:
+                    return self.reply(200, self.server.phone_store.create_pairing())
+                if self.path == '/api/admin/revoke' and set(data) == {'device_id'} and isinstance(data['device_id'], str):
+                    return self.reply(200, {'ok': self.server.phone_store.revoke(data['device_id'])})
+                raise ValueError()
+            except (ValueError, TypeError, KeyError):
+                return self.reply(400, {'error': 'invalid_request'})
         if self.path == '/api/logout':
             jar = cookies.SimpleCookie()
             try:
@@ -120,7 +202,7 @@ class Handler(BaseHTTPRequestHandler):
             self.server.attempts.append(now)
         try:
             length = int(self.headers.get('Content-Length', '0'))
-            if not 0 < length <= 2048 or self.headers.get('Content-Type') != 'application/json':
+            if not 0 < length <= 2048 or self.headers.get('Content-Type', '').split(';', 1)[0].strip() != 'application/json':
                 return self.reply(400, {'error': 'invalid_request'})
             password = json.loads(self.rfile.read(length))['password']
             if not isinstance(password, str) or len(password) > 512:
@@ -135,13 +217,14 @@ class Handler(BaseHTTPRequestHandler):
             if len(self.server.sessions) >= 100:
                 self.server.sessions.clear()
             self.server.sessions[token] = time.time() + 3600
-        self.reply(200, {'ok': True}, cookie=f'session={token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=3600')
+        self.reply(200, {'ok': True}, cookie=f'session={token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=3600' + ('; Secure' if self.server.public_origin else ''))
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--state-dir', required=True)
     parser.add_argument('--port', type=int, default=8787)
     parser.add_argument('--init-password', action='store_true')
+    parser.add_argument('--public-origin')
     args = parser.parse_args()
     if args.init_password:
         password = getpass.getpass('Admin password (at least 12 characters): ')
@@ -155,7 +238,7 @@ def main():
         with os.fdopen(fd, 'w') as stream:
             json.dump(dict(salt=salt, hash=password_hash(password, salt)), stream)
         return
-    PanelServer(('127.0.0.1', args.port), args.state_dir).serve_forever()
+    PanelServer(('127.0.0.1', args.port), args.state_dir, args.public_origin).serve_forever()
 
 if __name__ == '__main__':
     main()
