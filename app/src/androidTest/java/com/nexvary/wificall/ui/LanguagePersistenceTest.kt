@@ -53,6 +53,7 @@ class LanguagePersistenceTest {
             if (code == "ar" || code == "en") {
                 compose.onNodeWithText(translated(code, R.string.home)).performClick()
                 compose.waitForIdle()
+                Thread.sleep(300)
                 val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
                 val bitmap = checkNotNull(automation.takeScreenshot())
                 val file = File(base.getExternalFilesDir("screenshots"), "$code-activity-home.png")

@@ -45,6 +45,9 @@ class NavigationTest(private val language: String) {
         }
         fun screenshot(name: String) {
             compose.waitForIdle()
+            // Semantics settle before RenderThread commits the next display frame.
+            // Allow the display and the card ripple to settle for visual review.
+            Thread.sleep(300)
             val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
             val bitmap = checkNotNull(automation.takeScreenshot())
             val file = File(base.getExternalFilesDir("screenshots"), "$language-$name.png")
