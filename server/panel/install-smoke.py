@@ -140,9 +140,6 @@ def main():
         identity = command(['id', '-u', USER])
         require(identity.returncode == 0 and identity.stdout.strip().isdigit() and identity.stdout.strip() != b'0',
                 'Panel account must exist and must not be root.')
-        listeners = command(['ss', '-ltnH', 'sport = :8787'])
-        addresses = [line.split()[3] for line in listeners.stdout.decode().splitlines()]
-        require(addresses == ['127.0.0.1:8787'], 'Panel is not listening exclusively on IPv4 loopback.')
         deadline = time.monotonic() + 15
         while True:
             try:
@@ -154,6 +151,9 @@ def main():
                 time.sleep(0.2)
         require(status == 200 and health == {'panel': 'ok', 'gateway_verified': False},
                 'Health endpoint must identify the panel without claiming gateway verification.')
+        listeners = command(['ss', '-ltnH', 'sport = :8787'])
+        addresses = [line.split()[3] for line in listeners.stdout.decode().splitlines()]
+        require(addresses == ['127.0.0.1:8787'], 'Panel is not listening exclusively on IPv4 loopback.')
         try:
             request('/api/status')
             raise SmokeFailure('Unauthenticated status unexpectedly succeeded.')
