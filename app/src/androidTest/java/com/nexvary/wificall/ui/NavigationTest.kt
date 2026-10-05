@@ -45,7 +45,7 @@ class NavigationTest(private val language: String) {
         }
         fun screenshot(name: String) {
             compose.waitForIdle()
-            val bitmap = instrumentation.uiAutomation.takeScreenshot()
+            val bitmap = checkNotNull(instrumentation.uiAutomation.takeScreenshot())
             val file = File(base.getExternalFilesDir("screenshots"), "$language-$name.png")
             file.parentFile!!.mkdirs()
             file.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
