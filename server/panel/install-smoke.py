@@ -9,6 +9,7 @@ import json
 import os
 from pathlib import Path
 import pty
+import re
 import secrets
 import select
 import subprocess
@@ -112,6 +113,22 @@ def state_digest():
     return result.stdout.split()[0]
 
 
+def failure_diagnostics(result, sensitive_values):
+    # Updater output and our panel's journal contain no credential/request logging.
+    # Still redact known in-memory fixtures and token/hash-shaped strings before
+    # printing bounded diagnostics so a CI failure can be diagnosed from evidence.
+    journal = command(['sudo', '-n', 'journalctl', '-u', SERVICE, '-n', '35', '--no-pager'])
+    output = result.stdout + result.stderr + b'\nPanel service journal:\n' + journal.stdout + journal.stderr
+    text = output.decode('utf-8', errors='replace')
+    for value in sensitive_values:
+        if value:
+            text = text.replace(value, '[REDACTED]')
+    text = re.sub(r'[A-Za-z0-9_-]{32,}', '[REDACTED]', text)
+    text = re.sub(r'\x1b\[[0-?]*[ -/]*[@-~]', '', text)
+    print('Sanitized owned updater diagnostics (exit %d):' % result.returncode, file=sys.stderr)
+    print(text[-16000:], file=sys.stderr)
+
+
 def archive_owned():
     result = command(['sudo', '-n', 'bash', 'server/uninstall-panel.sh', '--archive-owned'])
     require(result.returncode == 0, 'Owned panel archive failed; command output was withheld.')
@@ -187,7 +204,9 @@ def main():
         require(len(devices_before['devices']) == 1 and devices_before['devices'][0]['report'] == report,
                 'Pre-update phone report was not persisted.')
         updated = command(['sudo', '-n', 'bash', 'server/update-panel.sh', '--update'], timeout=60)
-        require(updated.returncode == 0, 'Owned panel upgrade failed; output was withheld.')
+        if updated.returncode != 0:
+            failure_diagnostics(updated, [password, pairing['code'], phone['token']])
+        require(updated.returncode == 0, 'Owned panel upgrade failed; see sanitized diagnostics.')
         require(command(['systemctl', 'is-active', '--quiet', SERVICE]).returncode == 0,
                 'Updated panel service is not active.')
         require(state_digest() == before, 'Upgrade changed the original password state.')
