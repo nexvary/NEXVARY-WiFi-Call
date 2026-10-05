@@ -156,6 +156,10 @@ def main():
     try:
         install_interactively(password)
         require((APP / 'phone_store.py').is_file(), 'Installed phone-store dependency is missing.')
+        for marker in ('.nexvary-panel-owned', '.nexvary-panel-unit-sha256'):
+            marker_stat = command(['sudo', '-n', 'stat', '-c', '%a:%U', str(APP / marker)])
+            require(marker_stat.stdout.decode().strip() == '600:root',
+                    'Installed ownership markers must be root-private, including on hosts with default ACLs.')
         require(command(['systemctl', 'is-active', '--quiet', SERVICE]).returncode == 0,
                 'Installed panel service is not active.')
         user = command(['systemctl', 'show', '-p', 'User', '--value', SERVICE])
@@ -210,6 +214,10 @@ def main():
         if updated.returncode != 0:
             failure_diagnostics(updated, [password, pairing['code'], phone['token']])
         require(updated.returncode == 0, 'Owned panel upgrade failed; see sanitized diagnostics.')
+        for marker in ('.nexvary-panel-owned', '.nexvary-panel-unit-sha256'):
+            marker_stat = command(['sudo', '-n', 'stat', '-c', '%a:%U', str(APP / marker)])
+            require(marker_stat.stdout.decode().strip() == '600:root',
+                    'Updated ownership markers must be root-private, including on hosts with default ACLs.')
         require(command(['systemctl', 'is-active', '--quiet', SERVICE]).returncode == 0,
                 'Updated panel service is not active.')
         require(state_digest() == before, 'Upgrade changed the original password state.')

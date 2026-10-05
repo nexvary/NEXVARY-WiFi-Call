@@ -86,6 +86,7 @@ if sys.argv[2]:
 ARGS
 printf 'NEXVARY admin panel install v1\n' > "$stage_app/.nexvary-panel-owned"
 sha256sum "$stage_unit" | awk '{print $1}' > "$stage_app/.nexvary-panel-unit-sha256"
+chmod 600 "$stage_app/.nexvary-panel-owned" "$stage_app/.nexvary-panel-unit-sha256"
 chmod 755 "$stage_app"
 backup="/opt/nexvary-wifi-panel.updated.$(date -u +%Y%m%dT%H%M%SZ)"
 [[ ! -e "$backup" ]] || { printf 'Archive exists; refusing.\n' >&2; exit 1; }

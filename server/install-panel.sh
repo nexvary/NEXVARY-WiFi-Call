@@ -101,6 +101,7 @@ chown -R "$service_user:$service_user" "$stage_state"
 chmod 750 "$stage_state"
 chmod 755 "$stage_app"
 printf 'NEXVARY admin panel install v1\n' > "$stage_app/.nexvary-panel-owned"
+chmod 600 "$stage_app/.nexvary-panel-owned"
 mv -- "$stage_app" "$app_dir"
 mv -- "$stage_state" "$state_dir"
 cat > "$unit_file" <<'UNIT'
@@ -150,6 +151,7 @@ ARGS
 fi
 chmod 644 "$unit_file"
 sha256sum "$unit_file" | awk '{print $1}' > "$app_dir/.nexvary-panel-unit-sha256"
+chmod 600 "$app_dir/.nexvary-panel-unit-sha256"
 systemctl daemon-reload
 systemctl enable --now nexvary-wifi-panel.service
 systemctl is-active --quiet nexvary-wifi-panel.service
