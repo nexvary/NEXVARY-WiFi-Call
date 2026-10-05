@@ -1,5 +1,6 @@
 """Explicitly provision one engine credential; no service or gateway execution."""
 import argparse
+from contextlib import closing
 import hashlib
 import json
 import os
@@ -81,7 +82,7 @@ def configure(state_dir, config_path, device_id):
                 raise ValueError('Stop only the owned panel and allow pending database transactions to close before provisioning.')
         database_descriptor = _private_file(state, 'phones.sqlite3', uid, gid)
         try:
-            with sqlite3.connect(f'file:/proc/self/fd/{database_descriptor}?mode=ro&immutable=1', uri=True) as database:
+            with closing(sqlite3.connect(f'file:/proc/self/fd/{database_descriptor}?mode=ro&immutable=1', uri=True)) as database:
                 if database.execute('SELECT 1 FROM devices WHERE device_id = ?', (device_id,)).fetchone() is None:
                     raise ValueError('The selected device is not currently paired.')
         finally:

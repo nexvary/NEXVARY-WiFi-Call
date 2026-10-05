@@ -24,6 +24,28 @@ Set `NEXVARY_ENGINE_AUTH_FILE` to a regular, non-symlink file owned by the execu
 
 The adapter does not print/log requests, responses or exceptions and retains authentication outputs only in process memory. Python cannot guarantee zeroization of immutable objects; preventing secret persistence/logging and limiting lifetime are necessary constraints, not a claim of secure memory erasure. Do not enable packet capture, core dumps, protocol debugging or upstream decryption-table exports around transient key material.
 
+### Explicit credential provisioning
+
+First pair the actual phone through the panel and obtain its device UUID from the authenticated devices view. Then, from the reviewed repository checkout on the Ubuntu host, replace `PAIRED_DEVICE_UUID` below with that exact UUID. Run the credential tool as the same dedicated account intended for the future engine adapter; the recommended private configuration is owned by `nexvary-wifi-panel`, rather than requiring a root engine process.
+
+```bash
+sudo systemctl stop nexvary-wifi-panel.service
+# Required only for an older installation whose state directory is still 0750:
+sudo chmod 700 /var/lib/nexvary-wifi-panel
+sudo -u nexvary-wifi-panel mkdir -m 700 /var/lib/nexvary-wifi-panel/private-engine
+sudo -u nexvary-wifi-panel python3 server/engine/configure_engine.py --configure \
+  --state-dir /var/lib/nexvary-wifi-panel \
+  --config /var/lib/nexvary-wifi-panel/private-engine/auth.json \
+  --device-id PAIRED_DEVICE_UUID
+sudo systemctl start nexvary-wifi-panel.service
+```
+
+The checkout must be readable by the dedicated account. The CLI requires an existing mode `0700` state directory, existing mode `0600` password/database owned by that state account, a fresh configuration filename and a mode `0700` configuration parent owned by the executing UID. It reads an immutable SQLite snapshot without creating database sidecars and refuses pending WAL/journal transactions; stopping only this owned panel before provisioning lets its transactions close. It verifies the selected device is genuinely paired before creating anything.
+
+The tool generates 32 random bytes of authorization, writes exact `token`/`device_id` JSON with mode `0600`, and stores only its SHA-256 in `engine-token.sha256` with mode `0600` and the panel state's UID/GID. No token is printed or supplied as a command-line argument. Existing files or symlinks are refused, and failure to create the second file removes the newly created first file. It starts/restarts no service and changes no existing password/database/configuration. A process interruption between files requires reviewing the partial fresh credential before retrying; no automatic overwrite or credential reset is provided.
+
+The owned panel loads the hash only when started/restarted; a browser session or pairing does not enable the engine endpoint by itself. A future reviewed adapter process running as the dedicated UID would use `NEXVARY_ENGINE_AUTH_FILE=/var/lib/nexvary-wifi-panel/private-engine/auth.json`. Do not start the staged gateway: its execution remains blocked pending review. For an explicitly authorized different UID using `/etc/nexvary-engine/auth.json`, that directory must already be private and owned by the same executing UID, and that UID must be able to write the panel hash with the panel owner's UID/GID; the dedicated-account configuration above avoids that ownership ambiguity.
+
 ## Real identity gate
 
 Sanitized phone reports deliberately contain no IMSI. `identity()` therefore raises an unavailable error. A real, independently authorized operator identity/carrier configuration is required before the upstream protocol can construct its NAI. No fake/default IMSI, MCC/MNC or guessed operator identity is acceptable. This bridge currently supplies neither identity acquisition nor a complete gateway configuration.
