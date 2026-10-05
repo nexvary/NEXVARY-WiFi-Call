@@ -45,11 +45,19 @@ class NavigationTest(private val language: String) {
         }
         fun screenshot(name: String) {
             compose.waitForIdle()
-            android.os.ParcelFileDescriptor.AutoCloseInputStream(
-                instrumentation.uiAutomation.executeShellCommand(
-                    "mkdir -p /sdcard/Download/NEXVARY-WiFi-Call-screenshots && screencap -p /sdcard/Download/NEXVARY-WiFi-Call-screenshots/$language-$name.png"
-                )
-            ).use { it.readBytes() }
+            val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
+            val bitmap = checkNotNull(automation.takeScreenshot())
+            val file = File(base.getExternalFilesDir("screenshots"), "$language-$name.png")
+            file.parentFile!!.mkdirs()
+            file.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+            fun shell(command: String) {
+                val output = android.os.ParcelFileDescriptor.AutoCloseInputStream(automation.executeShellCommand(command))
+                    .use { it.readBytes().toString(Charsets.UTF_8) }
+                check(output.isBlank()) { output }
+            }
+            // executeShellCommand executes one program, not shell && operators.
+            shell("mkdir -p /sdcard/Download/NEXVARY-WiFi-Call-screenshots")
+            shell("cp ${file.absolutePath} /sdcard/Download/NEXVARY-WiFi-Call-screenshots/$language-$name.png")
         }
         compose.onNodeWithText(text(R.string.ready_title)).assertIsDisplayed()
         screenshot("home")
