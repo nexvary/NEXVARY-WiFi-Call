@@ -3,7 +3,7 @@ package com.nexvary.wificall.core
 enum class EvidenceLevel { UNKNOWN, DISCOVERED, EPDG_REACHABLE, SWU_AUTHENTICATED, IMS_REGISTERED, OUTBOUND_VOICE_VERIFIED, INBOUND_VOICE_VERIFIED, PRODUCTION_CANDIDATE }
 
 data class CarrierKey(val countryIso: String, val mcc: String, val mnc: String) {
- init { require(countryIso.matches(Regex("[A-Z]{2}"))); require(mcc.matches(Regex("\\d{3}"))); require(mnc.matches(Regex("\\d{2,3}"))) }
+ init { require(countryIso.matches(Regex("[A-Z]{2}"))); require(mcc.matches(Regex("\\d{3}"))); require(mnc.matches(Regex("\\d{1,3}"))) }
  val normalizedMnc: String get() = mnc.padStart(3, '0')
 }
 
