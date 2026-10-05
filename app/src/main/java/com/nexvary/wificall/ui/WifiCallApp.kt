@@ -50,7 +50,7 @@ import com.nexvary.wificall.platform.PhoneAsSimCapability
     BackHandler(enabled = page != AppPage.HOME) { back() }
     Scaffold(
         topBar = { TopAppBar(
-            title = { Text(stringResource(if (page == AppPage.HOME) R.string.app_name else page.title()), style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+            title = { Text(stringResource(if (page == AppPage.HOME) R.string.app_name else page.title()), style = if (page == AppPage.HOME) MaterialTheme.typography.titleLarge else MaterialTheme.typography.titleMedium, maxLines = if (page == AppPage.HOME) 1 else 2, overflow = TextOverflow.Ellipsis) },
             navigationIcon = { if (page != AppPage.HOME) IconButton(onClick = { back() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) } },
             actions = { IconButton(onClick = onRefresh) { Icon(Icons.Default.Refresh, stringResource(R.string.refresh_check)) } },
             colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
@@ -126,9 +126,9 @@ private fun AppPage.icon(): ImageVector = when (this) { AppPage.HOME -> Icons.De
     val color = when { state.checking -> MaterialTheme.colorScheme.primary; ready -> ReadyColor; unavailable -> ErrorColor; action -> WarningColor; else -> UnknownColor }
     val title = when { state.checking -> R.string.status_checking; ready -> R.string.status_ready; unavailable -> R.string.status_unavailable; action -> R.string.status_action; else -> R.string.status_not_checked }
     val track = MaterialTheme.colorScheme.surfaceVariant
-    Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(stringResource(R.string.ready_title), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Box(Modifier.size(160.dp).testTag("status-ring"), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(140.dp).testTag("status-ring"), contentAlignment = Alignment.Center) {
             Canvas(Modifier.fillMaxSize().padding(6.dp)) {
                 drawCircle(track, style = Stroke(10.dp.toPx()))
                 drawArc(color, -90f, if (ready) 360f else 280f, false, style = Stroke(10.dp.toPx(), cap = StrokeCap.Round))
