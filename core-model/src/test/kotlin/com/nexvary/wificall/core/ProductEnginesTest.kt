@@ -1,0 +1,3 @@
+package com.nexvary.wificall.core
+import kotlin.test.*
+class ProductEnginesTest { @Test fun wifiRemediationFirst(){val x=RemediationEngine.forBlockers(setOf(Blocker.CARRIER_EVIDENCE_MISSING,Blocker.NO_WIFI));assertEquals(Blocker.NO_WIFI,x.first().blocker)}; @Test fun oldEvidenceExpires(){assertEquals(EvidenceFreshness.EXPIRED,EvidenceFreshnessEngine.evaluate(0,100L*86400))}; @Test fun reportRedacts(){val r=DiagnosticReport(ReadinessResult(ReadinessState.UNKNOWN),QualityResult(null,QualityGrade.UNKNOWN,emptyList()),EvidenceLevel.UNKNOWN,EntitlementState.UNKNOWN,listOf("ip 10.0.0.1"));assertFalse(DiagnosticReportFormatter.redactedText(r).contains("10.0.0.1"))} }
