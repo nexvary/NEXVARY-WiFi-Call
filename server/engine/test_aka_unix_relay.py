@@ -167,7 +167,13 @@ class ActualUnixRelayTests(unittest.TestCase):
         try:
             supplied = {'Authorization':'Bearer '+TOKEN,'Content-Type':'application/json','Accept':'application/json'}
             supplied.update(headers or {})
-            connection.request(method, path, body=json.dumps(REQUEST) if body is None else body, headers=supplied)
+            try:
+                connection.request(method, path, body=json.dumps(REQUEST) if body is None else body, headers=supplied)
+            except BrokenPipeError:
+                # An early header rejection may close the writer before the
+                # separate body send. Still require the actual HTTP response
+                # and the test's no-forwarding assertion; never retry the request.
+                pass
             response = connection.getresponse()
             return response.status, json.loads(response.read())
         finally:
