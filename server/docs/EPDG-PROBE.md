@@ -63,3 +63,25 @@ python3 server/engine/epdg_probe.py --probe --follow-cookie \
 `initial_response_kind: cookie_requested` retains evidence of the first response if the follow-up times out. `cookie_followup_sent` and `packets_sent` describe actual sends. `offered_proposal_selected: true` means only that an unauthenticated matching SA/KE/nonce response was parsed; AKA, IPsec and IMS remain false. No IKE_AUTH is sent.
 
 Actual operator observation: a Windows probe received a correlated COOKIE response, while prior VPS probes received no response. This does not establish the cause of the difference or authenticate the endpoint.
+
+## Comparing UDP transport without changing firewall rules
+
+The default is still destination UDP/500 with an automatic local port. Explicit `--port 4500` prepends/validates the four-byte Non-ESP marker, outside the IKE length as required by RFC 7296 sections 2.23 and 3.1. ESP packets and NAT keepalives cannot be accepted as IKE responses. No automatic port fallback or additional retries occur.
+
+On the VPS, first try UDP/4500 with an automatic local port (no sudo):
+
+```bash
+python3 server/engine/epdg_probe.py --probe --follow-cookie \
+  --host epdg.epc.mnc002.mcc602.pub.3gppnetwork.org \
+  --address 105.198.254.100 --port 4500 --timeout 5
+```
+
+A separate source-port comparison may use `--port 500 --source-port 500`, or matching 4500 ports. On Ubuntu binding 500 may require sudo. The socket is exclusively bound for at most the short probe, no reuse options are enabled, and the socket closes on every exit. An occupied or denied port yields `local_port_unavailable` with zero packets; it is never taken over and no service is stopped. Windows uses SO_EXCLUSIVEADDRUSE when available. This is a temporary connected client socket, not an installed listener/service.
+
+```bash
+sudo python3 server/engine/epdg_probe.py --probe --follow-cookie \
+  --host epdg.epc.mnc002.mcc602.pub.3gppnetwork.org \
+  --address 105.198.254.100 --port 500 --source-port 500 --timeout 5
+```
+
+Results include `destination_port` and `source_port_requested` (0 means automatic). No-response comparisons remain inconclusive; don't infer carrier geoblocking or open firewall ports solely from these results. Nothing changes system routes, DNS, firewall rules or existing service configuration.

@@ -170,32 +170,66 @@ def cookie_request(packet,cookie):
     return bytes(header)+notify+packet[28:]
 
 
-def probe(host,address,timeout=5,follow_cookie=False):
+def validate_transport(port,source_port):
+    if type(port) is not int or port not in (500,4500):
+        raise ValueError('Destination port must be 500 or 4500.')
+    if type(source_port) is not int or source_port not in (0,port):
+        raise ValueError('Source port must be automatic or match the destination.')
+
+
+def encode_datagram(packet,port):
+    return (b'\0'*4+packet) if port==4500 else packet
+
+
+def decode_datagram(packet,port):
+    if port==4500:
+        # Non-ESP marker is outside the IKE length. Reject ESP/keepalives.
+        if len(packet)<4 or packet[:4]!=b'\0'*4:
+            raise ValueError('Invalid Non-ESP marker.')
+        return packet[4:]
+    return packet
+
+
+def probe(host,address,timeout=5,follow_cookie=False,port=500,source_port=0):
     address=validate_target(host,address,timeout)
+    validate_transport(port,source_port)
     spi,packet=build_request()
     started=time.monotonic()
     packets_sent=0
     initial_kind=None
     cookie_followup_sent=False
+    stage='socket'
     try:
         family=socket.AF_INET6 if ':' in address else socket.AF_INET
         with socket.socket(family,socket.SOCK_DGRAM) as transport:
             transport.settimeout(timeout)
-            transport.connect((address,500))
-            count=transport.send(packet)  # No timeout retransmit or IKE_AUTH.
+            if source_port:
+                stage='bind'
+                # No reuse: refuse an occupied service port rather than share it.
+                if hasattr(socket,'SO_EXCLUSIVEADDRUSE'):
+                    transport.setsockopt(socket.SOL_SOCKET,socket.SO_EXCLUSIVEADDRUSE,1)
+                transport.bind(('::' if family==socket.AF_INET6 else '0.0.0.0',source_port))
+            stage='connect'
+            transport.connect((address,port))
+            stage='send'
+            datagram=encode_datagram(packet,port)
+            count=transport.send(datagram)  # No timeout retransmit or IKE_AUTH.
             packets_sent=1
-            if count!=len(packet):raise OSError()
+            if count!=len(datagram):raise OSError()
             remaining=timeout-(time.monotonic()-started)
             if remaining<=0:raise TimeoutError()
             transport.settimeout(remaining)
-            response=transport.recv(MAX_PACKET+1)
-            result,cookie=_parse_response(response,spi)
+            stage='receive'
+            response=transport.recv(MAX_PACKET+(5 if port==4500 else 1))
+            result,cookie=_parse_response(decode_datagram(response,port),spi)
             if follow_cookie and cookie is not None:
                 initial_kind=result['response_kind']
                 remaining=timeout-(time.monotonic()-started)
                 if remaining<=0:raise TimeoutError()
                 transport.settimeout(remaining)
                 retry=cookie_request(packet,cookie)
+                stage='send'
+                retry=encode_datagram(retry,port)
                 count=transport.send(retry)
                 packets_sent=2
                 cookie_followup_sent=True
@@ -203,18 +237,19 @@ def probe(host,address,timeout=5,follow_cookie=False):
                 remaining=timeout-(time.monotonic()-started)
                 if remaining<=0:raise TimeoutError()
                 transport.settimeout(remaining)
-                result,_=_parse_response(transport.recv(MAX_PACKET+1),spi)
+                stage='receive'
+                result,_=_parse_response(decode_datagram(transport.recv(MAX_PACKET+(5 if port==4500 else 1)),port),spi)
                 # A second COOKIE is reported; never followed again.
     except TimeoutError:
         result={'state':'no_response_within_deadline'}
     except OSError:
-        result={'state':'udp_probe_unavailable'}
+        result={'state':'local_port_unavailable' if stage=='bind' else 'udp_probe_unavailable','transport_failure_stage':stage}
     except ValueError:
         result={'state':'invalid_or_uncorrelated_response'}
     result.update({'host':host,'address':address,'address_source':'operator_supplied','dns_verified':False,
                    'peer_authenticated':False,'aka_verified':False,'ipsec_established':False,'ims_registered':False,
                    'packets_sent':packets_sent,'packets_sent_maximum':2 if follow_cookie else 1,
-                   'cookie_followup_sent':cookie_followup_sent,'observed_at':int(time.time())})
+                   'cookie_followup_sent':cookie_followup_sent,'destination_port':port,'source_port_requested':source_port,'observed_at':int(time.time())})
     if initial_kind is not None:result['initial_response_kind']=initial_kind
     return result
 
@@ -226,12 +261,14 @@ def main(argv=None):
     parser.add_argument('--host',help='Canonical carrier ePDG hostname.')
     parser.add_argument('--address',help='Public IP independently resolved/reviewed by the operator; no DNS is performed.')
     parser.add_argument('--timeout',type=float,default=5)
+    parser.add_argument('--port',type=int,choices=(500,4500),default=500,help='Use 4500 for UDP with the required Non-ESP marker; no automatic fallback.')
+    parser.add_argument('--source-port',type=int,choices=(0,500,4500),default=0,help='Optional matching local port, exclusively bound for the short probe only; 0 is automatic.')
     options=parser.parse_args(argv)
     if not options.probe:
         print(json.dumps({'state':'plan_only','packets_sent':0,'dns_performed':False,'authentication_performed':False,
                           'required':'Explicit --probe --host canonical-ePDG --address reviewed-public-IP','ipsec_established':False}))
         return
-    try:result=probe(options.host,options.address,options.timeout,options.follow_cookie)
+    try:result=probe(options.host,options.address,options.timeout,options.follow_cookie,options.port,options.source_port)
     except ValueError:raise SystemExit('Invalid probe target or timeout.') from None
     print(json.dumps(result,sort_keys=True))
 

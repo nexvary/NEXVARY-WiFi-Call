@@ -195,5 +195,68 @@ class EpdgProbeTests(unittest.TestCase):
             probe.main(['--follow-cookie'])
         factory.assert_not_called()
 
+    def test_nat_t_marker_is_outside_ike_length_and_rejects_esp_keepalive(self):
+        packet=complete()
+        framed=probe.encode_datagram(packet,4500)
+        self.assertEqual(b'\0'*4,framed[:4])
+        self.assertEqual(packet,probe.decode_datagram(framed,4500))
+        self.assertEqual(len(packet),struct.unpack('!I',framed[28:32])[0])
+        for invalid in (b'\xff',b'\0'*3,b'ESP!'+packet):
+            with self.assertRaises(ValueError):probe.decode_datagram(invalid,4500)
+        self.assertEqual(packet,probe.encode_datagram(packet,500))
+
+    def test_nat_t_cookie_followup_frames_both_packets_on_single_endpoint(self):
+        original=probe.build_request()[1];original=SPI+original[8:]
+        with patch.object(probe,'build_request',return_value=(SPI,original)),patch.object(probe.socket,'socket') as factory:
+            transport=factory.return_value.__enter__.return_value
+            transport.send.side_effect=len
+            transport.recv.side_effect=[b'\0'*4+notify(16390,b'cookie'),b'\0'*4+complete()]
+            result=probe.probe(HOST,'8.8.8.8',5,True,4500)
+        transport.connect.assert_called_once_with(('8.8.8.8',4500))
+        transport.bind.assert_not_called()
+        self.assertEqual([b'\0'*4+original,b'\0'*4+probe.cookie_request(original,b'cookie')],[c.args[0] for c in transport.send.call_args_list])
+        self.assertEqual([1029,1029],[c.args[0] for c in transport.recv.call_args_list])
+        self.assertTrue(result['offered_proposal_selected'])
+        self.assertUnverified(result)
+
+    def test_nat_t_invalid_marker_does_not_trigger_cookie_followup(self):
+        with patch.object(probe,'build_request',return_value=(SPI,b'packet')),patch.object(probe.socket,'socket') as factory:
+            transport=factory.return_value.__enter__.return_value
+            transport.send.return_value=10;transport.recv.return_value=notify(16390,b'cookie')
+            result=probe.probe(HOST,'8.8.8.8',5,True,4500)
+        self.assertEqual('invalid_or_uncorrelated_response',result['state'])
+        self.assertEqual(1,transport.send.call_count)
+
+    def test_explicit_source_port_binds_exclusively_and_closes_without_fallback(self):
+        for port in (500,4500):
+            with patch.object(probe,'build_request',return_value=(SPI,b'packet')),patch.object(probe.socket,'socket') as factory:
+                transport=factory.return_value.__enter__.return_value
+                transport.bind.side_effect=OSError('occupied')
+                result=probe.probe(HOST,'8.8.8.8',5,True,port,port)
+            transport.bind.assert_called_once_with(('0.0.0.0',port))
+            transport.connect.assert_not_called();transport.send.assert_not_called()
+            factory.return_value.__exit__.assert_called_once()
+            self.assertEqual('local_port_unavailable',result['state'])
+            self.assertEqual(0,result['packets_sent'])
+
+    def test_source_port_success_preserves_request_and_never_enables_reuse(self):
+        with patch.object(probe,'build_request',return_value=(SPI,b'packet')),patch.object(probe.socket,'socket') as factory:
+            transport=factory.return_value.__enter__.return_value
+            transport.send.return_value=6;transport.recv.return_value=complete()
+            result=probe.probe(HOST,'8.8.8.8',5,False,500,500)
+        transport.bind.assert_called_once_with(('0.0.0.0',500))
+        self.assertFalse(any(c.args[1] in (socket.SO_REUSEADDR,getattr(socket,'SO_REUSEPORT',socket.SO_REUSEADDR)) for c in transport.setsockopt.call_args_list))
+        self.assertEqual(500,result['source_port_requested'])
+        self.assertUnverified(result)
+
+    def test_invalid_transport_and_plan_mode_perform_no_network(self):
+        for port,source in ((53,0),(500,4500),(4500,500),(500,True)):
+            with patch.object(probe.socket,'socket') as factory:
+                with self.assertRaises(ValueError):probe.probe(HOST,'8.8.8.8',5,True,port,source)
+                factory.assert_not_called()
+        with patch.object(probe.socket,'socket') as factory,contextlib.redirect_stdout(io.StringIO()):
+            probe.main(['--port','4500','--source-port','4500','--follow-cookie'])
+        factory.assert_not_called()
+
 
 if __name__=='__main__':unittest.main()
