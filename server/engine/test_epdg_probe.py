@@ -133,5 +133,67 @@ class EpdgProbeTests(unittest.TestCase):
             self.assertEqual(count,result['packets_sent'])
             self.assertUnverified(result)
 
+    def test_cookie_retry_preserves_original_wire_payloads_and_header(self):
+        spi,original=probe.build_request()
+        for cookie in (b'x',bytes(range(64))):
+            retry=probe.cookie_request(original,cookie)
+            self.assertEqual(original[:16],retry[:16])
+            self.assertEqual(original[17:24],retry[17:24])
+            self.assertEqual(41,retry[16])
+            self.assertEqual(len(retry),struct.unpack('!I',retry[24:28])[0])
+            self.assertEqual((33,0,8+len(cookie),0,0,16390),struct.unpack('!BBHBBH',retry[28:36]))
+            self.assertEqual(cookie,retry[36:36+len(cookie)])
+            self.assertEqual(original[28:],retry[36+len(cookie):])
+
+    def test_cookie_followup_uses_same_socket_and_never_exports_cookie(self):
+        original=probe.build_request()[1]
+        original=SPI+original[8:]
+        with patch.object(probe,'build_request',return_value=(SPI,original)),patch.object(probe.socket,'socket') as factory:
+            transport=factory.return_value.__enter__.return_value
+            transport.send.side_effect=lambda packet:len(packet)
+            transport.recv.side_effect=[notify(16390,b'private-cookie'),complete()]
+            result=probe.probe(HOST,'8.8.8.8',2,True)
+        factory.assert_called_once()
+        transport.connect.assert_called_once_with(('8.8.8.8',500))
+        self.assertEqual([original,probe.cookie_request(original,b'private-cookie')],[call.args[0] for call in transport.send.call_args_list])
+        self.assertEqual(2,result['packets_sent'])
+        self.assertTrue(result['cookie_followup_sent'])
+        self.assertTrue(result['offered_proposal_selected'])
+        self.assertNotIn('private-cookie',json.dumps(result))
+        self.assertUnverified(result)
+
+    def test_second_cookie_and_followup_timeout_never_send_third_packet(self):
+        for second in (notify(16390,b'new-cookie'),TimeoutError()):
+            with patch.object(probe,'build_request',return_value=(SPI,b'S'*16+b'!'+b'X'*11+b'body')),patch.object(probe.socket,'socket') as factory:
+                transport=factory.return_value.__enter__.return_value
+                transport.send.side_effect=lambda packet:len(packet)
+                transport.recv.side_effect=[notify(16390,b'cookie'),second]
+                result=probe.probe(HOST,'8.8.8.8',2,True)
+            self.assertEqual(2,transport.send.call_count)
+            self.assertEqual(2,result['packets_sent_maximum'])
+            self.assertEqual('cookie_requested',result['initial_response_kind'])
+            self.assertEqual('no_response_within_deadline' if isinstance(second,Exception) else 'cookie_requested',result.get('response_kind',result['state']))
+            self.assertUnverified(result)
+
+    def test_cookie_cannot_extend_total_deadline(self):
+        with patch.object(probe,'build_request',return_value=(SPI,b'packet')),patch.object(probe.socket,'socket') as factory,patch.object(probe.time,'monotonic',side_effect=[0,0.1,2.01]):
+            transport=factory.return_value.__enter__.return_value
+            transport.send.return_value=6
+            transport.recv.return_value=notify(16390,b'cookie')
+            result=probe.probe(HOST,'8.8.8.8',2,True)
+        self.assertEqual(1,transport.send.call_count)
+        self.assertFalse(result['cookie_followup_sent'])
+        self.assertEqual('no_response_within_deadline',result['state'])
+
+    def test_ambiguous_cookie_challenges_are_rejected_before_resend(self):
+        cookie=struct.pack('!BBH',0,0,16390)+b'cookie'
+        for parts,responder in (([(41,cookie),(41,cookie)],b'\0'*8),([(41,cookie),(40,b'N'*32)],b'\0'*8),([(41,cookie),(41,struct.pack('!BBH',0,0,14))],b'\0'*8),([(41,cookie)],b'R'*8)):
+            with self.assertRaises(ValueError):probe.parse_response(response(parts,responder),SPI)
+
+    def test_follow_cookie_without_probe_is_still_zero_io(self):
+        with patch.object(probe.socket,'socket') as factory,contextlib.redirect_stdout(io.StringIO()):
+            probe.main(['--follow-cookie'])
+        factory.assert_not_called()
+
 
 if __name__=='__main__':unittest.main()

@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""One-shot, opt-in, unauthenticated ePDG IKE_SA_INIT reachability probe.
+"""Bounded, opt-in, unauthenticated ePDG IKE_SA_INIT reachability probe.
 
 Independent implementation of RFC 7296 sections 3.1-3.4/3.9/3.10 using the
 RFC 3526 section 3 group-14 mathematical parameter. Pinned upstream SWu
 (e3719840b93961f933aab3dac8bd2641936e2bcc) reviewed for wire compatibility;
 no upstream runtime/dependencies or system/network mutation code is imported.
-No DNS, identity, AKA, key derivation, IPsec, IKE_AUTH or retransmission occurs.
+No DNS, identity, AKA, key derivation, IPsec or IKE_AUTH occurs.
+An explicit option permits one COOKIE follow-up within the same deadline.
 An unauthenticated response cannot prove the responder's carrier identity.
 """
 import argparse
@@ -97,14 +98,14 @@ def _selected_sa(body):
     return selected=={1:12,2:5,3:12,4:14}
 
 
-def parse_response(packet, spi):
+def _parse_response(packet, spi):
     try:
         if not isinstance(packet,bytes) or not 28<len(packet)<=MAX_PACKET or len(spi)!=8:
             raise ValueError()
         initiator,responder,next_type,version,exchange,flags,message_id,length=struct.unpack('!8s8sBBBBII',packet[:28])
         if initiator!=spi or version!=0x20 or exchange!=34 or message_id!=0 or not flags&0x20 or flags&0x08 or length!=len(packet):
             raise ValueError()
-        offset=28; bodies={}; notifications=[]; count=0
+        offset=28; bodies={}; notifications=[]; cookie=None; count=0
         while next_type:
             count+=1
             if count>16 or offset+4>len(packet):raise ValueError()
@@ -121,7 +122,9 @@ def parse_response(packet, spi):
                 protocol,spi_size,code=struct.unpack('!BBH',body[:4])
                 if protocol!=0 or spi_size!=0:raise ValueError()
                 data=body[4:]
-                if code==16390 and not 1<=len(data)<=64:raise ValueError()
+                if code==16390:
+                    if cookie is not None or not 1<=len(data)<=64:raise ValueError()
+                    cookie=data
                 if code==17 and len(data)!=2:raise ValueError()
                 if code==14 and data:raise ValueError()
                 if code in {16388,16389} and len(data)!=20:raise ValueError()
@@ -136,36 +139,72 @@ def parse_response(packet, spi):
             if not 2<=peer<=GROUP14-2 or pow(peer,(GROUP14-1)//2,GROUP14)!=1:raise ValueError()
         if 40 in bodies and not 16<=len(bodies[40])<=256:raise ValueError()
         complete=selected and {33,34,40}<=bodies.keys() and responder!=b'\0'*8
-        if 16390 in notifications:category='cookie_requested';complete=False
+        if 16390 in notifications:
+            # Only a standalone, stateless COOKIE challenge may cause a resend.
+            if notifications!=[16390] or bodies or responder!=b'\0'*8:raise ValueError()
+            category='cookie_requested';complete=False
         elif 17 in notifications:category='different_dh_requested';complete=False
         elif 14 in notifications:category='proposal_rejected';complete=False
         elif any(code<16384 for code in notifications):category='error_notify';complete=False
         elif complete:category='offered_proposal_ke_nonce_received'
         else:category='incomplete_or_unselected_response'
         return {'state':'ike_init_response_received','response_kind':category,'offered_proposal_selected':bool(complete),
-                'notify_types':notifications,'peer_authenticated':False,'aka_verified':False,'ipsec_established':False,'ims_registered':False}
+                'notify_types':notifications,'peer_authenticated':False,'aka_verified':False,'ipsec_established':False,'ims_registered':False},cookie
     except (ValueError,TypeError,struct.error,IndexError):
         raise ValueError('Invalid or uncorrelated IKE_SA_INIT response.') from None
 
 
-def probe(host,address,timeout=5):
+def parse_response(packet, spi):
+    # COOKIE bytes stay private and never appear in JSON diagnostics.
+    return _parse_response(packet,spi)[0]
+
+
+def cookie_request(packet,cookie):
+    if not isinstance(cookie,bytes) or not 1<=len(cookie)<=64:
+        raise ValueError('Invalid COOKIE.')
+    # RFC 7296 2.6: prepend Notify; retain SPI, message ID and every original payload.
+    notify=_payload(packet[16],struct.pack('!BBH',0,0,16390)+cookie)
+    header=bytearray(packet[:28])
+    header[16]=41
+    header[24:28]=struct.pack('!I',len(packet)+len(notify))
+    return bytes(header)+notify+packet[28:]
+
+
+def probe(host,address,timeout=5,follow_cookie=False):
     address=validate_target(host,address,timeout)
     spi,packet=build_request()
     started=time.monotonic()
     packets_sent=0
+    initial_kind=None
+    cookie_followup_sent=False
     try:
         family=socket.AF_INET6 if ':' in address else socket.AF_INET
         with socket.socket(family,socket.SOCK_DGRAM) as transport:
             transport.settimeout(timeout)
             transport.connect((address,500))
-            count=transport.send(packet)  # Exactly one datagram; no retransmit/IKE_AUTH.
+            count=transport.send(packet)  # No timeout retransmit or IKE_AUTH.
             packets_sent=1
             if count!=len(packet):raise OSError()
             remaining=timeout-(time.monotonic()-started)
             if remaining<=0:raise TimeoutError()
             transport.settimeout(remaining)
             response=transport.recv(MAX_PACKET+1)
-            result=parse_response(response,spi)
+            result,cookie=_parse_response(response,spi)
+            if follow_cookie and cookie is not None:
+                initial_kind=result['response_kind']
+                remaining=timeout-(time.monotonic()-started)
+                if remaining<=0:raise TimeoutError()
+                transport.settimeout(remaining)
+                retry=cookie_request(packet,cookie)
+                count=transport.send(retry)
+                packets_sent=2
+                cookie_followup_sent=True
+                if count!=len(retry):raise OSError()
+                remaining=timeout-(time.monotonic()-started)
+                if remaining<=0:raise TimeoutError()
+                transport.settimeout(remaining)
+                result,_=_parse_response(transport.recv(MAX_PACKET+1),spi)
+                # A second COOKIE is reported; never followed again.
     except TimeoutError:
         result={'state':'no_response_within_deadline'}
     except OSError:
@@ -174,13 +213,16 @@ def probe(host,address,timeout=5):
         result={'state':'invalid_or_uncorrelated_response'}
     result.update({'host':host,'address':address,'address_source':'operator_supplied','dns_verified':False,
                    'peer_authenticated':False,'aka_verified':False,'ipsec_established':False,'ims_registered':False,
-                   'packets_sent':packets_sent,'packets_sent_maximum':1,'observed_at':int(time.time())})
+                   'packets_sent':packets_sent,'packets_sent_maximum':2 if follow_cookie else 1,
+                   'cookie_followup_sent':cookie_followup_sent,'observed_at':int(time.time())})
+    if initial_kind is not None:result['initial_response_kind']=initial_kind
     return result
 
 
 def main(argv=None):
     parser=argparse.ArgumentParser(description='Plan-only by default; a single unauthenticated IKE_SA_INIT is opt-in.')
     parser.add_argument('--probe',action='store_true')
+    parser.add_argument('--follow-cookie',action='store_true',help='Follow at most one valid COOKIE challenge; maximum two datagrams within the original deadline.')
     parser.add_argument('--host',help='Canonical carrier ePDG hostname.')
     parser.add_argument('--address',help='Public IP independently resolved/reviewed by the operator; no DNS is performed.')
     parser.add_argument('--timeout',type=float,default=5)
@@ -189,7 +231,7 @@ def main(argv=None):
         print(json.dumps({'state':'plan_only','packets_sent':0,'dns_performed':False,'authentication_performed':False,
                           'required':'Explicit --probe --host canonical-ePDG --address reviewed-public-IP','ipsec_established':False}))
         return
-    try:result=probe(options.host,options.address,options.timeout)
+    try:result=probe(options.host,options.address,options.timeout,options.follow_cookie)
     except ValueError:raise SystemExit('Invalid probe target or timeout.') from None
     print(json.dumps(result,sort_keys=True))
 

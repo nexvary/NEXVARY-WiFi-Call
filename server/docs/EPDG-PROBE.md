@@ -34,7 +34,7 @@ python3 server/engine/epdg_probe.py --probe \
   --address 105.198.254.100
 ```
 
-The address is explicit so a blocking DNS resolver cannot extend the probe. This tool does not prove that the chosen IP belongs to the hostname; reviewing the DNS result is a separate step. It permits only public unicast numeric addresses and a canonical 3GPP ePDG hostname. It sends exactly one initial IKEv2 UDP/500 request with a fresh SPI, nonce and ephemeral group-14 key exchange. It waits for a bounded response, with no retries, COOKIE resend, IKE_AUTH or AKA request. Do not repeatedly loop it.
+The address is explicit so a blocking DNS resolver cannot extend the probe. This tool does not prove that the chosen IP belongs to the hostname; reviewing the DNS result is a separate step. It permits only public unicast numeric addresses and a canonical 3GPP ePDG hostname. It sends exactly one initial IKEv2 UDP/500 request with a fresh SPI, nonce and ephemeral group-14 key exchange. It waits for a bounded response, with no retries, COOKIE resend, IKE_AUTH or AKA request by default. Do not repeatedly loop it.
 
 ## Interpreting the result
 
@@ -45,3 +45,21 @@ No reply is inconclusive: it may reflect network filtering, geolocation policy, 
 The final live milestones still require a genuine authorized SIM authentication backend, real carrier/subscriber configuration, reviewed isolated gateway egress and independent IMS/calling/audio tests.
 
 Primary protocol references: [RFC 7296](https://www.rfc-editor.org/rfc/rfc7296.html), [RFC 3526 group 14](https://www.rfc-editor.org/rfc/rfc3526.html).
+
+## Optional bounded COOKIE follow-up (Windows or Ubuntu)
+
+Add `--follow-cookie` to explicitly allow one COOKIE follow-up. RFC 7296 section 2.6 requires the received COOKIE Notify to be the first payload while the original SPI, message ID, SA, KE and nonce remain unchanged. The same UDP socket and endpoint are used. At most two datagrams are sent within one total `--timeout` deadline (2–5 seconds); a second COOKIE, malformed response, timeout or different DH request never causes further traffic. COOKIE bytes are not exported. The default remains one packet; even `--follow-cookie` without `--probe` performs no network activity.
+
+```powershell
+py -u "$env:TEMP\nexvary-epdg-probe.py" --probe --follow-cookie --host epdg.epc.mnc002.mcc602.pub.3gppnetwork.org --address 105.198.254.100 --timeout 5
+```
+
+```bash
+python3 server/engine/epdg_probe.py --probe --follow-cookie \
+  --host epdg.epc.mnc002.mcc602.pub.3gppnetwork.org \
+  --address 105.198.254.100 --timeout 5
+```
+
+`initial_response_kind: cookie_requested` retains evidence of the first response if the follow-up times out. `cookie_followup_sent` and `packets_sent` describe actual sends. `offered_proposal_selected: true` means only that an unauthenticated matching SA/KE/nonce response was parsed; AKA, IPsec and IMS remain false. No IKE_AUTH is sent.
+
+Actual operator observation: a Windows probe received a correlated COOKIE response, while prior VPS probes received no response. This does not establish the cause of the difference or authenticate the endpoint.
