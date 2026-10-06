@@ -1,6 +1,6 @@
 # Ubuntu gateway PoC — preparation and evidence gates
 
-Status: **not deployed, not carrier-tested**. The Android APK can report privileges; it does not yet provide a network AKA service. No server address or authorized SSH access was supplied for this session. Scripts in this folder are preparation tools, not a claim of VoWiFi functionality.
+Status: **gateway not deployed, not carrier-tested**. The Android 0.5.0 bridge and authenticated server broker support explicitly consented, temporary AKA sessions. They do not grant the application SIM permissions. The actual shared VPS at `3.65.234.184` runs the panel alongside Outline and FG MTM. The user supplied a successful private network/mount/PID isolation probe with host state unchanged on 2026-10-06. We have no direct SSH access and have not executed a gateway on this VPS.
 
 ## Read-only first
 
@@ -31,7 +31,7 @@ If preflight shows insufficient swap, review a 2–4 GiB swapfile on a supported
 4. If privileges are missing, record that limitation. Do not use root, hidden APIs, RIL patches or platform keys to bypass it. A carrier-approved application or an external authorized reader is the next practical option.
 5. If privileges are present, a subsequent authorized live test must invoke `getIccAuthentication(APPTYPE_USIM, AUTHTYPE_EAP_AKA, challenge)` for the selected subscription. A privilege check alone is **not AKA verified**. Treat null/error/AUTS distinctly; no fabricated success.
 
-The phone adapter remains to be implemented. Design requirements: authenticated encrypted channel bound to one gateway, explicit enrollment, selected-subscription binding, strict RAND/AUTN parsing, short challenge deadlines, request replay/rate controls and immediate closure when privileges/subscription change. Never extract Ki/long-term SIM secrets. Never log or persist authentication responses, CK/IK, session keys, PINs or full challenge material. No arbitrary APDU/proxy endpoint is permitted in the consumer build.
+The foreground phone adapter and private engine broker are implemented with authenticated enrollment, selected-subscription binding, strict RAND/AUTN parsing, short challenge deadlines and replay/rate controls. The selected phone currently reports no carrier privilege for this application; actual AKA remains unverified. See [PHONE-AKA-BRIDGE.md](PHONE-AKA-BRIDGE.md) for the implemented contract and [PHONE-AS-SIM-OPTIONS.md](PHONE-AS-SIM-OPTIONS.md) for authorized alternatives. Never extract Ki/long-term SIM secrets. Never log or persist authentication responses, CK/IK, session keys, PINs or full challenge material. No arbitrary APDU/proxy endpoint is permitted in the consumer build.
 
 Android reference: [TelephonyManager](https://developer.android.com/reference/android/telephony/TelephonyManager#getIccAuthentication(int,%20int,%20java.lang.String)), [carrier privilege rules](https://source.android.com/docs/core/connect/uicc).
 
@@ -48,7 +48,7 @@ This creates a marked private `server/work/upstream` checkout and does **not** e
 - Its README describes Ki/OPc credentials. NEXVARY permits only on-SIM authentication; reject software-Milenage `--ki/--op/--opc` configuration.
 - `engine/swu_ike.py` contains fallback sample IMSI/RES/CK/IK values when a reader/server fails. Replace those branches with explicit hard failure before use; synthetic values must never count as carrier evidence.
 - `engine/ami_usim.py` logs AKA result/key values; SWu prints similar material and decryption diagnostics. Suppress key logging at the source and verify failure/success logs contain no key material before enabling persistent logs or exports.
-- No reviewed Android bridge exists at this pin. PC/SC support does not imply Phone-as-SIM support. Both EAP-AKA and IMS-AKA must use the authorized chosen backend.
+- No Android bridge exists in the original upstream pin. NEXVARY's staged adapter uses its own authenticated temporary bridge; PC/SC support alone does not imply Phone-as-SIM support. Both EAP-AKA and IMS-AKA must use the authorized chosen backend. Staged entry points remain blocked until the remaining system mutation and dependency review is complete.
 - Its installer can install Docker, rebuild/version-lock PC/SC components, build images, enable autostart and start services. Never run it blindly on the existing host. Native control default binding must be constrained before deployment.
 - Audit every bundled dependency and preserve required license notices/source obligations. The top-level MIT license does not relicense Asterisk, PC/SC or other components.
 
