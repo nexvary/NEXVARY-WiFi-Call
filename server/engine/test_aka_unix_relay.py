@@ -16,7 +16,7 @@ import time
 import unittest
 from unittest.mock import Mock
 
-from aka_unix_relay import AkaUnixRelay, ENDPOINT, _request, _response, _socket_directory
+from aka_unix_relay import AkaUnixRelay, ENDPOINT, _request, _response, _socket_directory, _remaining
 
 TOKEN = 't' * 43
 DEVICE = 'd4119be3-74b6-43e7-b5e1-cf25e018db45'
@@ -49,6 +49,19 @@ class FixtureHandler(BaseHTTPRequestHandler):
         code = self.server.status if authorized else 401
         payload = self.server.response if authorized else {'error': 'unauthorized'}
         encoded = payload if isinstance(payload, bytes) else json.dumps(payload).encode()
+        if self.server.slow_chunked:
+            self.send_response(code)
+            self.send_header('Transfer-Encoding', 'chunked')
+            self.end_headers()
+            try:
+                for byte in encoded:
+                    self.wfile.write(b'1\r\n'+bytes([byte])+b'\r\n')
+                    self.wfile.flush()
+                    time.sleep(.03)
+                self.wfile.write(b'0\r\n\r\n')
+            except OSError:
+                pass
+            return
         self.send_response(code)
         if code == 301:
             self.send_header('Location', 'http://example.invalid/private')
@@ -58,6 +71,13 @@ class FixtureHandler(BaseHTTPRequestHandler):
 
 
 class RelayValidationTests(unittest.TestCase):
+    def test_timeout_bounds_and_expired_deadline_fail_closed(self):
+        with self.assertRaisesRegex(TimeoutError, '^AKA relay operation deadline exceeded.$'):
+            _remaining(time.monotonic() - 1)
+        for value in (0, -1, 36, True, None, float('nan'), float('inf')):
+            with self.assertRaises(ValueError):
+                AkaUnixRelay('/unused.sock', operation_timeout=value)
+
     def test_exact_request_fields_uuid_hex_and_duplicate_json_keys(self):
         self.assertEqual(REQUEST, _request(json.dumps(REQUEST).encode()))
         invalid = [dict(REQUEST, ki='forbidden'), dict(REQUEST, rand='ab'),
@@ -123,6 +143,7 @@ class ActualUnixRelayTests(unittest.TestCase):
         self.engine.release = threading.Event(); self.engine.release.set()
         self.engine.status = 200
         self.engine.response = {'state':'SUCCESS','payload':SUCCESS}
+        self.engine.slow_chunked = False
         self.engine.handle_error = lambda request,address: None
         self.engine_thread = threading.Thread(target=self.engine.serve_forever, kwargs={'poll_interval':.01}, daemon=True)
         self.engine_thread.start()
@@ -151,6 +172,86 @@ class ActualUnixRelayTests(unittest.TestCase):
             return response.status, json.loads(response.read())
         finally:
             connection.close()
+
+    def restart_with_short_deadline(self):
+        self.close_relay()
+        self.relay = AkaUnixRelay(self.path, operation_timeout=.2)
+        self.relay_thread = threading.Thread(target=self.relay.serve_forever, kwargs={'poll_interval':.01}, daemon=True)
+        self.relay_thread.start()
+
+    def assert_workers_available(self):
+        deadline=time.monotonic()+.3
+        while time.monotonic()<deadline:
+            with self.relay._thread_lock:
+                if not self.relay._threads:
+                    break
+            time.sleep(.001)
+        with self.relay._thread_lock:
+            self.assertEqual(0,len(self.relay._threads))
+        self.assertEqual((200,{'state':'SUCCESS','payload':SUCCESS}),self.request())
+
+    def slow_incoming(self, body_phase):
+        self.restart_with_short_deadline()
+        failure_times = []
+        started = time.monotonic()
+        def drip():
+            peer = socket.socket(socket.AF_UNIX,socket.SOCK_STREAM)
+            peer.settimeout(2)
+            try:
+                peer.connect(str(self.path))
+                if body_phase:
+                    body = json.dumps(REQUEST).encode()
+                    peer.sendall(('POST '+ENDPOINT+' HTTP/1.0\r\nAuthorization: Bearer '+TOKEN+
+                                  '\r\nContent-Type: application/json\r\nContent-Length: '+str(len(body))+'\r\n\r\n').encode())
+                else:
+                    peer.sendall(('POST '+ENDPOINT+' HTTP/1.0\r\n').encode())
+                    body = ('Authorization: Bearer '+TOKEN+'\r\n').encode()
+                for byte in body:
+                    peer.sendall(bytes([byte]))
+                    time.sleep(.03)
+            except OSError:
+                failure_times.append(time.monotonic()-started)
+            finally:
+                peer.close()
+        output = io.StringIO()
+        with contextlib.redirect_stderr(output),contextlib.redirect_stdout(output):
+            workers=[threading.Thread(target=drip,daemon=True) for _ in range(2)]
+            for worker in workers:worker.start()
+            for worker in workers:worker.join(timeout=1)
+        self.assertTrue(all(not worker.is_alive() for worker in workers))
+        self.assertEqual(2,len(failure_times))
+        self.assertTrue(all(elapsed < .8 for elapsed in failure_times))
+        self.assertEqual('',output.getvalue())
+        self.assertEqual([],self.engine.received)
+        self.assert_workers_available()
+
+    def test_whole_deadline_bounds_slow_headers_and_releases_both_workers(self):
+        self.slow_incoming(False)
+
+    def test_whole_deadline_bounds_slow_body_and_releases_both_workers(self):
+        self.slow_incoming(True)
+
+    def test_whole_deadline_also_bounds_slow_chunked_loopback_response(self):
+        self.restart_with_short_deadline()
+        self.engine.slow_chunked = True
+        finished=[]
+        started=time.monotonic()
+        def read_slow():
+            try:
+                self.request()
+            except (OSError,http.client.HTTPException):
+                finished.append(time.monotonic()-started)
+        output=io.StringIO()
+        with contextlib.redirect_stderr(output),contextlib.redirect_stdout(output):
+            workers=[threading.Thread(target=read_slow,daemon=True) for _ in range(2)]
+            for worker in workers:worker.start()
+            for worker in workers:worker.join(timeout=1)
+        self.assertTrue(all(not worker.is_alive() for worker in workers))
+        self.assertEqual(2,len(finished))
+        self.assertTrue(all(elapsed < .8 for elapsed in finished))
+        self.assertEqual('',output.getvalue())
+        self.engine.slow_chunked=False
+        self.assert_workers_available()
 
     def test_actual_unix_to_loopback_round_trip_no_logs_or_proxy_environment(self):
         output = io.StringIO()

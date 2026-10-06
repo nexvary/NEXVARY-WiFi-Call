@@ -20,6 +20,7 @@ import socketserver
 import stat
 import struct
 import threading
+import time
 import uuid
 
 ENDPOINT = '/api/engine/aka'
@@ -35,6 +36,53 @@ ERROR_STATES = frozenset({
 })
 ALLOWED_HEADERS = frozenset({'host', 'authorization', 'content-type',
                             'content-length', 'connection', 'accept-encoding', 'accept'})
+
+
+def _remaining(deadline):
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        raise TimeoutError('AKA relay operation deadline exceeded.')
+    return remaining
+
+
+class _DeadlineSocket(socket.socket):
+    """Every I/O uses the same deadline, including makefile() buffered reads."""
+    def __init__(self, family, *, fileno, deadline, type=socket.SOCK_STREAM, proto=0):
+        super().__init__(family, type, proto, fileno=fileno)
+        self.deadline = deadline
+        try:
+            self.settimeout(_remaining(deadline))
+        except Exception:
+            self.close()
+            raise
+
+    def recv_into(self, *args):
+        self.settimeout(_remaining(self.deadline))
+        return super().recv_into(*args)
+
+    def recv(self, *args):
+        self.settimeout(_remaining(self.deadline))
+        return super().recv(*args)
+
+    def sendall(self, *args):
+        self.settimeout(_remaining(self.deadline))
+        return super().sendall(*args)
+
+
+class _DeadlineHTTPConnection(http.client.HTTPConnection):
+    def __init__(self, deadline):
+        super().__init__('127.0.0.1', 8787, timeout=_remaining(deadline))
+        self.deadline = deadline
+
+    def connect(self):
+        connected = socket.create_connection(('127.0.0.1', 8787), timeout=_remaining(self.deadline))
+        try:
+            if connected.family != socket.AF_INET:
+                raise OSError('Unexpected loopback socket family.')
+            self.sock = _DeadlineSocket(socket.AF_INET, type=connected.type, proto=connected.proto,
+                                        fileno=connected.detach(), deadline=self.deadline)
+        finally:
+            connected.close()
 
 
 def _wipe(value):
@@ -186,7 +234,7 @@ class _Handler(BaseHTTPRequestHandler):
             if len(raw) != length:
                 return self.reply(400, {'error': 'invalid_request'})
             data = _request(raw)
-            connection = http.client.HTTPConnection('127.0.0.1', 8787, timeout=TIMEOUT)
+            connection = _DeadlineHTTPConnection(self.connection.deadline)
             connection.request('POST', ENDPOINT, json.dumps(data, separators=(',', ':')), headers={
                 'Authorization': self.headers['Authorization'], 'Content-Type': 'application/json',
                 'Accept': 'application/json',
@@ -216,10 +264,13 @@ class AkaUnixRelay(socketserver.UnixStreamServer):
     """Exactly two concurrent workers; no unbounded executor or waiting queue."""
     request_queue_size = 2
 
-    def __init__(self, socket_path):
+    def __init__(self, socket_path, *, operation_timeout=TIMEOUT):
+        if isinstance(operation_timeout, bool) or not isinstance(operation_timeout, (int, float)) or not 0 < operation_timeout <= TIMEOUT:
+            raise ValueError('Invalid operation timeout.')
         if not hasattr(socket, 'SO_PEERCRED'):
             raise RuntimeError('Linux peer credentials are required.')
         self.path = _socket_directory(socket_path)
+        self.operation_timeout = operation_timeout
         self._workers = threading.BoundedSemaphore(2)
         self._threads = set()
         self._thread_lock = threading.Lock()
@@ -243,8 +294,13 @@ class AkaUnixRelay(socketserver.UnixStreamServer):
 
     def get_request(self):
         connection, address = super().get_request()
-        connection.settimeout(TIMEOUT)
-        return connection, address
+        deadline = time.monotonic() + self.operation_timeout
+        try:
+            bounded = _DeadlineSocket(socket.AF_UNIX, type=connection.type, proto=connection.proto,
+                                      fileno=connection.detach(), deadline=deadline)
+            return bounded, address
+        finally:
+            connection.close()
 
     def verify_request(self, request, client_address):
         try:
