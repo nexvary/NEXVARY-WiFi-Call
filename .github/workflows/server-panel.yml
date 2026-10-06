@@ -49,3 +49,12 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Verify installer and owned uninstall on disposable runner
         run: python3 server/panel/install-smoke.py
+  isolation-smoke:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Verify private namespaces preserve host networking and services
+        run: sudo -n --preserve-env=GITHUB_ACTIONS,RUNNER_ENVIRONMENT python3 server/engine/isolation_smoke.py

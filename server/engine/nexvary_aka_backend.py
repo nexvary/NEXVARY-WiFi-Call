@@ -8,7 +8,10 @@ import base64
 import json
 import os
 import re
+import socket
 import stat
+import struct
+import time
 import uuid
 
 
@@ -20,6 +23,69 @@ def _hex(value, lengths):
     if not isinstance(value, str) or len(value) not in lengths or not re.fullmatch(r'[0-9A-Fa-f]+', value):
         raise AkaUnavailable('Invalid AKA data.')
     return value.upper()
+
+
+class _DeadlineSocket(socket.socket):
+    """A fixed operation deadline also bounds slow HTTP headers/body reads."""
+    def __init__(self):
+        super().__init__(socket.AF_UNIX, socket.SOCK_STREAM)
+        self.deadline = time.monotonic() + 35
+
+    def _remaining(self):
+        remaining = self.deadline - time.monotonic()
+        if remaining <= 0:
+            raise TimeoutError()
+        self.settimeout(remaining)
+
+    def connect(self, address):
+        self._remaining()
+        return super().connect(address)
+
+    def recv_into(self, *args):
+        self._remaining()
+        return super().recv_into(*args)
+
+    def sendall(self, *args):
+        self._remaining()
+        return super().sendall(*args)
+
+
+def _peer_uid(sock):
+    return struct.unpack('3i', sock.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, struct.calcsize('3i')))[1]
+
+
+class _UnixHTTPConnection(http.client.HTTPConnection):
+    def __init__(self, path):
+        super().__init__('localhost', timeout=35)
+        self.path = path
+
+    def connect(self):
+        path = self.path
+        if not isinstance(path, str) or not path.startswith('/') or os.path.normpath(path) != path or path.startswith('//') or len(os.fsencode(path)) > 107:
+            raise AkaUnavailable('Invalid private AKA socket configuration.')
+        parts = path.split('/')[1:]
+        directory = os.open('/', os.O_RDONLY | os.O_DIRECTORY)
+        sock = None
+        try:
+            for component in parts[:-1]:
+                descriptor = os.open(component, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=directory)
+                os.close(directory)
+                directory = descriptor
+            parent = os.fstat(directory)
+            endpoint = os.stat(parts[-1], dir_fd=directory, follow_symlinks=False)
+            if parent.st_uid != os.geteuid() or stat.S_IMODE(parent.st_mode) != 0o700 or not stat.S_ISSOCK(endpoint.st_mode) or endpoint.st_uid != os.geteuid() or stat.S_IMODE(endpoint.st_mode) != 0o600:
+                raise AkaUnavailable('Private AKA socket ownership or permissions invalid.')
+            sock = _DeadlineSocket()
+            # Hold the validated directory open across connection to avoid path replacement.
+            sock.connect(f'/proc/self/fd/{directory}/{parts[-1]}')
+            if _peer_uid(sock) != os.geteuid():
+                raise AkaUnavailable('Private AKA peer unauthorized.')
+            self.sock = sock
+            sock = None
+        finally:
+            os.close(directory)
+            if sock is not None:
+                sock.close()
 
 
 class PhoneAkaBackend:
@@ -48,7 +114,9 @@ class PhoneAkaBackend:
         body = json.dumps(dict(device_id=self._device_id, rand=rand, autn=autn)).encode()
         connection = None
         try:
-            connection = http.client.HTTPConnection('127.0.0.1', 8787, timeout=35)
+            unix_path = os.environ.get('NEXVARY_AKA_SOCKET')
+            connection = (_UnixHTTPConnection(unix_path) if unix_path is not None
+                          else http.client.HTTPConnection('127.0.0.1', 8787, timeout=35))
             # Direct connection: no environment proxy, redirects, query secrets or retries.
             connection.request('POST', '/api/engine/aka', body=body, headers={
                 'Authorization': 'Bearer ' + self._token,

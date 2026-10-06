@@ -1,15 +1,18 @@
 import base64
 import contextlib
 import io
+from http.server import BaseHTTPRequestHandler
 import json
 import os
+import socketserver
 from pathlib import Path
 import tempfile
+import threading
 import unittest
 from unittest.mock import patch
 import uuid
 
-from nexvary_aka_backend import AkaUnavailable, PhoneAkaBackend, get_backend
+from nexvary_aka_backend import AkaUnavailable, PhoneAkaBackend, get_backend, _DeadlineSocket
 
 
 class Response:
@@ -126,6 +129,89 @@ class BackendTests(unittest.TestCase):
                 get_backend()
         with patch.dict(os.environ, {}, clear=True), self.assertRaises(AkaUnavailable):
             get_backend()
+
+    @contextlib.contextmanager
+    def unix_broker(self, response):
+        # A real AF_UNIX listener exercises HTTP framing and Linux SO_PEERCRED.
+        with tempfile.TemporaryDirectory() as directory:
+            path = str(Path(directory) / 'aka.sock')
+            received = []
+            class Handler(BaseHTTPRequestHandler):
+                def log_message(self, *_):
+                    pass
+                def do_POST(self):
+                    received.append((self.path, dict(self.headers), json.loads(self.rfile.read(int(self.headers['Content-Length'])))))
+                    body = json.dumps(response).encode()
+                    self.send_response(200)
+                    self.send_header('Content-Type', 'application/json')
+                    self.send_header('Content-Length', str(len(body)))
+                    self.end_headers()
+                    self.wfile.write(body)
+            server = socketserver.UnixStreamServer(path, Handler)
+            os.chmod(path, 0o600)
+            thread = threading.Thread(target=server.serve_forever, kwargs={'poll_interval': 0.01}, daemon=True)
+            thread.start()
+            try:
+                yield path, received
+            finally:
+                server.shutdown()
+                server.server_close()
+                thread.join(timeout=2)
+
+    def test_actual_private_unix_http_success_and_sync_without_tcp(self):
+        for response, expected in (
+            (dict(state='SUCCESS', payload=base64.b64encode(self.success).decode()), tuple(x.hex().upper() for x in (self.res, self.ck, self.ik))),
+            (dict(state='SYNC_FAILURE', payload=base64.b64encode(b'\xdc\x0e' + b'a' * 14).decode()), ('61' * 14, None, None)),
+        ):
+            with self.unix_broker(response) as (path, received), patch.dict(os.environ, {'NEXVARY_AKA_SOCKET': path}), patch('nexvary_aka_backend.http.client.HTTPConnection') as tcp:
+                self.assertEqual(expected, self.backend.authenticate(self.rand, self.autn))
+                tcp.assert_not_called()
+                self.assertEqual(1, len(received))
+                request_path, headers, payload = received[0]
+                self.assertEqual('/api/engine/aka', request_path)
+                self.assertEqual('Bearer ' + self.token, headers['Authorization'])
+                self.assertEqual({'device_id': self.device, 'rand': self.rand, 'autn': self.autn}, payload)
+                self.assertFalse({'Origin', 'Forwarded', 'X-Forwarded-For', 'X-Forwarded-Proto'} & set(headers))
+
+    def test_bad_explicit_unix_configuration_never_falls_back(self):
+        with tempfile.TemporaryDirectory() as directory:
+            regular = Path(directory) / 'regular'; regular.write_text('not a socket'); regular.chmod(0o600)
+            for path in ('', 'relative.sock', 'https://remote.example/aka', directory + '/../aka.sock', str(Path(directory) / 'missing'), str(regular)):
+                with self.subTest(kind=path.rsplit('/', 1)[-1]), patch.dict(os.environ, {'NEXVARY_AKA_SOCKET': path}), patch('nexvary_aka_backend.http.client.HTTPConnection') as tcp:
+                    with self.assertRaises(AkaUnavailable): self.backend.authenticate(self.rand, self.autn)
+                    tcp.assert_not_called()
+
+    def test_socket_and_directory_symlinks_and_permissions_refused_before_auth(self):
+        response = dict(state='SUCCESS', payload=base64.b64encode(self.success).decode())
+        with self.unix_broker(response) as (path, received), tempfile.TemporaryDirectory() as other:
+            socket_link = Path(other) / 'link'; socket_link.symlink_to(path)
+            directory_link = Path(other) / 'parent'; directory_link.symlink_to(Path(path).parent)
+            for unsafe in (str(socket_link), str(directory_link / 'aka.sock')):
+                with patch.dict(os.environ, {'NEXVARY_AKA_SOCKET': unsafe}), self.assertRaises(AkaUnavailable):
+                    self.backend.authenticate(self.rand, self.autn)
+            for target, mode in ((Path(path), 0o666), (Path(path).parent, 0o755)):
+                original = target.stat().st_mode & 0o777; target.chmod(mode)
+                with patch.dict(os.environ, {'NEXVARY_AKA_SOCKET': path}), self.assertRaises(AkaUnavailable):
+                    self.backend.authenticate(self.rand, self.autn)
+                target.chmod(original)
+            self.assertEqual([], received)
+
+    def test_foreign_unix_peer_rejected_before_secret_request(self):
+        response = dict(state='SUCCESS', payload=base64.b64encode(self.success).decode())
+        with self.unix_broker(response) as (path, received), patch.dict(os.environ, {'NEXVARY_AKA_SOCKET': path}), patch('nexvary_aka_backend._peer_uid', return_value=os.geteuid() + 1):
+            with self.assertRaises(AkaUnavailable): self.backend.authenticate(self.rand, self.autn)
+            self.assertEqual([], received)
+
+    def test_unix_failed_response_and_deadline_fail_closed_without_logging(self):
+        output = io.StringIO()
+        with self.unix_broker(dict(state='TIMED_OUT', payload=None)) as (path, _), patch.dict(os.environ, {'NEXVARY_AKA_SOCKET': path}), contextlib.redirect_stdout(output), contextlib.redirect_stderr(output):
+            with self.assertRaises(AkaUnavailable) as caught: self.backend.authenticate(self.rand, self.autn)
+            self.assertNotIn(self.token, str(caught.exception))
+            self.assertEqual('', output.getvalue())
+        with _DeadlineSocket() as sock:
+            sock.deadline = 0
+            with self.assertRaises(TimeoutError): sock.recv_into(bytearray(1))
+            with self.assertRaises(TimeoutError): sock.sendall(b'x')
 
 
 if __name__ == '__main__':

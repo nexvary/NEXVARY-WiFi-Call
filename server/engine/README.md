@@ -4,7 +4,7 @@ This directory contains a fail-closed transient AKA adapter and a **staging-only
 
 ## Broker contract
 
-The adapter uses a direct HTTP connection to `127.0.0.1:8787` with a 35-second maximum timeout. It does not use environment proxies, remote URL configuration, redirects, GET query parameters or automatic retries.
+By default the adapter uses a direct HTTP connection to `127.0.0.1:8787` with a 35-second socket timeout. An explicitly configured private Unix socket provides the same HTTP contract across a reviewed network-namespace boundary, with a 35-second total I/O deadline. Neither transport uses environment proxies, remote URLs, redirects, GET query parameters or automatic retries.
 
 `POST /api/engine/aka`, `Authorization: Bearer <explicit engine credential>`:
 
@@ -45,6 +45,14 @@ The checkout must be readable by the dedicated account. The CLI requires an exis
 The tool generates 32 random bytes of authorization, writes exact `token`/`device_id` JSON with mode `0600`, and stores only its SHA-256 in `engine-token.sha256` with mode `0600` and the panel state's UID/GID. No token is printed or supplied as a command-line argument. Existing files or symlinks are refused, and failure to create the second file removes the newly created first file. It starts/restarts no service and changes no existing password/database/configuration. A process interruption between files requires reviewing the partial fresh credential before retrying; no automatic overwrite or credential reset is provided.
 
 The owned panel loads the hash only when started/restarted; a browser session or pairing does not enable the engine endpoint by itself. A future reviewed adapter process running as the dedicated UID would use `NEXVARY_ENGINE_AUTH_FILE=/var/lib/nexvary-wifi-panel/private-engine/auth.json`. Do not start the staged gateway: its execution remains blocked pending review. For an explicitly authorized different UID using `/etc/nexvary-engine/auth.json`, that directory must already be private and owned by the same executing UID, and that UID must be able to write the panel hash with the panel owner's UID/GID; the dedicated-account configuration above avoids that ownership ambiguity.
+
+### Optional private Unix transport
+
+For an independently reviewed, opt-in Unix relay, set `NEXVARY_AKA_SOCKET` to its absolute socket filename, for example `/run/nexvary-aka/aka.sock`. The adapter requires a mode `0700` parent directory and a mode `0600` Unix socket, both owned by its executing UID. It opens every directory component without following symlinks, rejects relative/traversing paths, checks the socket type, and verifies the connected Linux peer UID before transmitting authorization or challenges. An explicitly configured empty, missing, symlinked, insecure or unauthorized socket fails closed; it never falls back to the host HTTP endpoint.
+
+A full engine network namespace has its own loopback, so its `127.0.0.1:8787` cannot reach the host panel. A private filesystem Unix socket addresses this boundary without publishing the panel or broker on a new network port. A mount namespace must make only the relay's private directory available at the configured path, preserving the dedicated UID and permissions; the same UID must own both ends. Do not use an abstract/public socket, bind-mount the entire host `/run`, or expose the panel state directory solely to reach this socket. Provision the engine credential in its separate private mount. The relay must remain scoped to the existing authenticated AKA endpoint and must not grant arbitrary host HTTP access.
+
+Configuring this transport grants no runtime gateway approval, SIM privilege or live AKA evidence. The staging execution gate remains in place. Real Unix-socket fixture tests require Linux AF_UNIX/SO_PEERCRED access; an executor that denies socket creation cannot verify them, and that limitation must be reported until the mandatory Ubuntu CI tests execute.
 
 ## Real identity gate
 
