@@ -4,7 +4,7 @@ import threading
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 
-from .core import LabError, demo, pcsc_readers, ports, probe, to_csv, to_json
+from .core import LabError, demo, pcsc_readers, ports, probe, select_master_file, to_csv, to_json
 
 BG = "#0C1319"
 PANEL = "#17232E"
@@ -66,6 +66,7 @@ class App:
         toolbar.pack(fill="x", pady=(0, 12))
         self._button(toolbar, "تجربة بدون جهاز", self.show_demo).pack(side="left", padx=(0, 8))
         self._button(toolbar, "تصدير التقرير", self.export).pack(side="left")
+        self._button(toolbar, "اختبار APDU", self.apdu_check).pack(side="left", padx=(8, 0))
         self._button(toolbar, "فحص الفلاشة المحددة", self.inspect, strong=True).pack(side="right")
         self._button(toolbar, "تحديث الأجهزة", self.refresh).pack(side="right", padx=(0, 8))
 
@@ -158,6 +159,40 @@ class App:
             self.status.set(error)
         else:
             self._show_report(report)
+
+    def apdu_check(self):
+        if self.busy: return
+        indexes = self.ports_box.curselection()
+        if not indexes:
+            messagebox.showinfo("NEXVARY", "اختر منفذ AT أولًا.")
+            return
+        agreed = messagebox.askyesno(
+            "اختبار البطاقة",
+            "هل أنت مالك الشريحة أو مخول لاختبارها؟\\n"
+            "سيرسل البرنامج أمر SELECT MF ثابتًا لتغيير الملف المحدد مؤقتًا، "
+            "دون قراءة الأسرار أو تعديل بيانات الشريحة. هل تتابع؟")
+        if not agreed: return
+        selected = self.devices[indexes[0]].device
+        self.busy = True
+        self.status.set("جارٍ اختبار APDU محلي محدد...")
+        def worker():
+            try:
+                result = select_master_file(selected)
+                self.root.after(0, lambda: self._apdu_finish(result, None))
+            except LabError as exc:
+                msg = str(exc)
+                self.root.after(0, lambda: self._apdu_finish(None, msg))
+            except Exception:
+                self.root.after(0, lambda: self._apdu_finish(None, "APDU test unavailable"))
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _apdu_finish(self, result, error):
+        self.busy = False
+        if error:
+            self.status.set(error)
+        else:
+            self.status.set(f"اختبار SELECT MF: {result.status} / {result.value} — لا يثبت AKA")
+            self.table.insert("", 0, values=(result.status, result.value, result.name))
 
     def export(self):
         if self.report is None:

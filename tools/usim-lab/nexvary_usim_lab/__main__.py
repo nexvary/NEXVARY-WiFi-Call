@@ -3,14 +3,15 @@ import argparse
 import sys
 from pathlib import Path
 
-from .core import LabError, demo, pcsc_readers, ports, probe, to_csv, to_json
+from .core import LabError, demo, pcsc_readers, ports, probe, select_master_file, to_csv, to_json
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description="NEXVARY USB-USIM Lab — read-only local diagnostics")
-    parser.add_argument("action", nargs="?", choices=("gui", "ports", "pcsc", "probe", "demo"), default="gui")
+    parser.add_argument("action", nargs="?", choices=("gui", "ports", "pcsc", "probe", "demo", "select-mf"), default="gui")
     parser.add_argument("--port", help="Explicit modem serial port, for probe only")
     parser.add_argument("--baudrate", type=int, default=115200)
     parser.add_argument("--export", help="Optional .json or .csv redacted report")
+    parser.add_argument("--consent", action="store_true", help="Explicitly consent to the fixed on-card SELECT MF test")
     args = parser.parse_args(argv)
     try:
         if args.action == "gui":
@@ -27,8 +28,16 @@ def main(argv=None):
             for entry in found:
                 print(entry)
             return 0
-        if args.action == "probe" and not args.port:
+        if args.action in ("probe", "select-mf") and not args.port:
             parser.error("--port COM3 (or /dev/ttyUSB0) is required for probe")
+        if args.action == "select-mf":
+            if not args.consent:
+                parser.error("select-mf requires explicit --consent from the card owner")
+            if args.export:
+                parser.error("select-mf does not export APDU results")
+            result = select_master_file(args.port, args.baudrate)
+            print(result.name, result.status, result.value)
+            return 0
         report = demo() if args.action == "demo" else probe(args.port, args.baudrate)
         if args.export:
             path = Path(args.export)

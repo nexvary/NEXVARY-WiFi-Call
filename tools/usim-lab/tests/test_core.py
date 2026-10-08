@@ -3,7 +3,7 @@ import unittest
 from unittest.mock import patch
 
 from nexvary_usim_lab.core import (
-    QUERIES, DemoSerial, LabError, _one_query, demo, probe, redact, to_csv, to_json,
+    QUERIES, DemoSerial, LabError, _one_query, demo, probe, redact, to_csv, to_json, select_master_file,
 )
 
 class CoreTests(unittest.TestCase):
@@ -56,6 +56,21 @@ class CoreTests(unittest.TestCase):
             def readline(self): return b""
         state, _ = _one_query(NoReply("COM1", 115200), "AT", deadline_seconds=0.2)
         self.assertEqual("TIMEOUT", state)
+
+    def test_explicit_fixed_select_mf_and_redacted_status(self):
+        class SelectModem(DemoSerial):
+            ANSWERS = dict(DemoSerial.ANSWERS, **{
+                'AT+CSIM=14,"00A40000023F00"': ('+CSIM: 4,"9000"', 'OK')})
+        result = select_master_file("COM5", factory=SelectModem)
+        self.assertEqual("ACCEPTED", result.status)
+        self.assertEqual("SW=9000", result.value)
+        with self.assertRaises(LabError):
+            select_master_file("COM5", factory=DemoSerial)
+        class BadReply(DemoSerial):
+            ANSWERS = dict(DemoSerial.ANSWERS, **{
+                'AT+CSIM=14,"00A40000023F00"': ('+CSIM: 6,"9000"', 'OK')})
+        with self.assertRaises(LabError):
+            select_master_file("COM5", factory=BadReply)
 
     def test_pcsc_optional_is_non_mutating(self):
         with patch.dict("sys.modules", {"smartcard": None}):

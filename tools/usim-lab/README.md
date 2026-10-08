@@ -72,3 +72,13 @@ No installer is produced in the first milestone.
 
 The existing `server/engine/nexvary_aka_backend.py` remains unchanged: its
 phone authorization contract must not be bypassed by a laboratory utility.
+
+## Optional actual APDU transport check
+
+When the card owner explicitly consents, `python -m nexvary_usim_lab
+select-mf --port COM3 --consent` sends exactly the fixed, non-persistent
+SELECT MF APDU `00 A4 00 00 02 3F 00` via `AT+CSIM`. Only the
+ISO-7816 status word is returned, never raw response bytes. Some devices
+do not support this command, or require another application/channel context.
+A successful SELECT does **not** establish USIM AKA or VoWiFi support.
+The desktop GUI offers the same one-shot, consented test.

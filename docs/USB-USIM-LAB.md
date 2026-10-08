@@ -36,3 +36,10 @@ A local AT+CSIM availability probe is insufficient to claim AKA support.
 - [ ] Record safe redacted evidence for each modem
 - [ ] With authorization, validate UICC application access and challenge path
 - [ ] Independently verify carrier entitlement / ePDG / IMS
+
+## Constrained physical APDU evidence
+Version 0.1.x supports one optional local, consented `AT+CSIM` SELECT
+MF (file 3F00), returning only the last two ISO-7816 status bytes. This
+changes only the current file selection (not persistent card data).
+It cannot discover ISIM keys or authenticate the subscription and is not
+a remotely callable API.
