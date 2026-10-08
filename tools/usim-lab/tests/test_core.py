@@ -11,7 +11,7 @@ class CoreTests(unittest.TestCase):
         cmds = [q.command for q in QUERIES]
         self.assertEqual(len(cmds), len(set(cmds)))
         for cmd in cmds:
-            self.assertTrue(cmd in ("AT",) or cmd.endswith(("?", "=?")) or cmd in ("AT+CGMI", "AT+CGMM", "AT+CGMR"))
+            self.assertTrue(cmd in ("AT",) or cmd.endswith(("?", "=?")) or cmd in ("AT+CGMI", "AT+CGMM", "AT+CGMR", "AT+CCID", "AT+CSQ"))
             self.assertNotIn("CIMI", cmd)
             self.assertNotIn("CPIN=", cmd)
         with self.assertRaises(LabError):
@@ -36,7 +36,7 @@ class CoreTests(unittest.TestCase):
         self.assertIn("ICCID", to_csv(report))
 
     def test_refuse_invalid_command_and_port(self):
-        for port in ("", "foo\\x00bar", "a"*256):
+        for port in ("", "foo\x00bar", "a"*256):
             with self.assertRaises(LabError):
                 probe(port, factory=DemoSerial)
         with self.assertRaises(LabError):
@@ -44,7 +44,7 @@ class CoreTests(unittest.TestCase):
 
     def test_redaction_and_controls(self):
         self.assertEqual("***********1234", redact("123456789001234"))
-        self.assertEqual("prefix ***************2345", redact("prefix 89882123456789012345"))
+        self.assertEqual("prefix ****************2345", redact("prefix 89882123456789012345"))
         self.assertNotIn("\x00", redact("a\x00b"))
         self.assertEqual("no digits", redact("no digits"))
 
