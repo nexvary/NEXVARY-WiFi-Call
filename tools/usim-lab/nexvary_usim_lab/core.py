@@ -221,7 +221,7 @@ def to_csv(report: Report) -> str:
 
 # One fixed, non-persistent ISO 7816 SELECT MF (3F00). No generic APDU API.
 _SELECT_MF_COMMAND = 'AT+CSIM=14,"00A40000023F00"'
-_CSIM_LINE = re.compile(r'^\+CSIM:\s*(\d+)\s*,\s*"?([0-9A-Fa-f]+)"?\s*
+_CSIM_LINE = re.compile(r'^\+CSIM:\s*(\d+)\s*,\s*"?([0-9A-Fa-f]+)"?\s*')
 
 def select_master_file(device: str, baudrate: int = 115200,
                        factory: Callable | None = None) -> Reading:
@@ -243,61 +243,6 @@ def select_master_file(device: str, baudrate: int = 115200,
         try:
             transport.reset_input_buffer()
             transport.write((_SELECT_MF_COMMAND + "\r").encode("ascii"))
-            transport.flush()
-            deadline = time.monotonic() + 5.0
-            response_status = None
-            total = 0
-            while time.monotonic() < deadline:
-                raw = transport.readline()
-                total += len(raw)
-                if total > 4096:
-                    raise LabError("Modem APDU reply exceeded the allowed size.")
-                line = raw.decode("ascii", errors="replace").strip()
-                if not line or line == _SELECT_MF_COMMAND:
-                    continue
-                match = _CSIM_LINE.fullmatch(line)
-                if match is not None:
-                    hex_result = match.group(2).upper()
-                    if int(match.group(1)) != len(hex_result) or len(hex_result) < 4 or len(hex_result) % 2:
-                        raise LabError("Malformed APDU result length.")
-                    response_status = hex_result[-4:]
-                elif line == "OK":
-                    if response_status is None:
-                        raise LabError("Modem omitted the APDU card response.")
-                    result = "ACCEPTED" if response_status == "9000" else "CARD_STATUS"
-                    return Reading("APDU SELECT MF", result, "SW=" + response_status,
-                                   "An APDU reply does not verify AKA or ISIM access")
-                elif line == "ERROR" or line.startswith(("+CME ERROR", "+CMS ERROR")):
-                    raise LabError("Modem refused the fixed APDU.")
-            raise LabError("No complete APDU reply within five seconds.")
-        except LabError:
-            raise
-        except Exception:
-            raise LabError("APDU serial transport unavailable.") from None
-    finally:
-        transport.close()
-)
-
-def select_master_file(device: str, baudrate: int = 115200,
-                       factory: Callable | None = None) -> Reading:
-    """Optional on-card APDU transport evidence. This cannot verify USIM AKA.
-
-    Caller must obtain local card owner's consent. The APDU changes only the
-    current selected file; no UPDATE, VERIFY, AUTHENTICATE or PIN is issued.
-    Do not expose this over HTTP or include raw card response in any report.
-    """
-    if not device or len(device) > 255 or "\x00" in device:
-        raise LabError("Choose a valid serial port.")
-    if baudrate not in (9600, 19200, 38400, 57600, 115200, 230400):
-        raise LabError("Unsupported baud rate.")
-    transport = (factory or _open_serial)(device, baudrate)
-    try:
-        state, _ = _one_query(transport, "AT")
-        if state != "OK":
-            raise LabError("Modem AT channel is not ready.")
-        try:
-            transport.reset_input_buffer()
-            transport.write((_SELECT_MF_COMMAND + "\\r").encode("ascii"))
             transport.flush()
             deadline = time.monotonic() + 5.0
             response_status = None
