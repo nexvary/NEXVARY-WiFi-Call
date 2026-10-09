@@ -46,6 +46,10 @@ categories={
  'authentication_failure':('failed to authenticate', 'authentication failed'),
  'configuration_failure':('could not create an object', 'could not find option', 'invalid configuration'),
  'registrar_failure':('unable to register', 'no aor', 'could not find aor'),
+ 'dialplan_route_failure':('extension not found', 'not found in context', 'no such extension'),
+ 'contact_route_failure':('no contacts available', 'unable to create channel', 'could not create dialog', 'no route to destination'),
+ 'codec_negotiation_failure':('no joint capabilities', 'no compatible codecs', 'no matching codecs'),
+ 'media_negotiation_failure':('could not negotiate stream', 'no crypto', 'srtp unprotect failed', 'failed to initialize srtp'),
 }
 result={'synthetic':True,'success':False,'log_read_limit_bytes':1024*1024,
         'warning_categories':{name:sum(text.count(term) for term in terms) for name,terms in categories.items()}}

@@ -17,6 +17,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.linphone.core.Core
+import org.linphone.core.Call
+import org.linphone.core.CoreListenerStub
 import org.linphone.core.MediaEncryption
 import java.io.File
 import java.security.cert.CertificateFactory
@@ -38,6 +40,22 @@ class SipGatewayE2ETest {
             .put("passed", false).put("success", false).put("fixture_ca_scope", "test_core_only")
             .put("certificate_validation", true).put("hostname_validation", true)
         var client: SipClient? = null
+        var engine: Core? = null
+        val callEvents = org.json.JSONArray()
+        val diagnosticListener = object : CoreListenerStub() {
+            override fun onCallStateChanged(core: Core, call: Call, state: Call.State, message: String) {
+                // All fields are enums or numeric measurements. Never record message,
+                // remote address, SDP, credentials, or ErrorInfo.phrase.
+                if (callEvents.length() < 50) {
+                    val stats = call.audioStats
+                    callEvents.put(JSONObject().put("state", state.name)
+                        .put("media_encryption", call.currentParams.mediaEncryption.name)
+                        .put("reason", call.reason.name)
+                        .put("sip_status", call.errorInfo.protocolCode)
+                        .put("ice_state", stats?.iceState?.name ?: "no_audio_stats"))
+                }
+            }
+        }
         try {
             val fixtureFile = File(context.filesDir, "nexvary-sip-e2e.json")
             check(fixtureFile.isFile && fixtureFile.length() in 1..16384) { "E2E_FIXTURE_REQUIRED" }
@@ -57,12 +75,12 @@ class SipGatewayE2ETest {
             compose.waitForIdle()
             val sip = SipClient.get(context)
             client = sip
-            var engine: Core? = null
             main {
                 sip.register(host, port, username, password)
                 // Reflection accesses our own class only, never Android hidden APIs.
                 val field = SipClient::class.java.getDeclaredField("core").apply { isAccessible = true }
                 engine = checkNotNull(field.get(sip) as? Core)
+                checkNotNull(engine).addListener(diagnosticListener)
                 checkNotNull(engine).setRootCaData(rootCa)
                 checkNotNull(engine).verifyServerCertificates(true)
                 checkNotNull(engine).verifyServerCn(true)
@@ -76,9 +94,12 @@ class SipGatewayE2ETest {
 
             phase = "outgoing"
             main { sip.dial(peer) }
+            phase = "outgoing_media_negotiation"
             await(timeout) { sip.state.value.call == SipCallPhase.MEDIA_ACTIVE && sip.state.value.srtpActive }
+            phase = "outgoing_audio_statistics"
             val outgoing = mediaEvidence(checkNotNull(engine), timeout)
             result.put("outgoing", outgoing)
+            phase = "outgoing_screenshot"
             compose.onNodeWithTag("sip-active-call").performScrollTo()
             screenshot("outgoing")
             main { sip.hangUp() }
@@ -91,7 +112,9 @@ class SipGatewayE2ETest {
             await(timeout) { sip.state.value.call == SipCallPhase.INCOMING }
             result.put("incoming_ringing", true)
             main { sip.answer() }
+            phase = "incoming_media_negotiation"
             await(timeout) { sip.state.value.call == SipCallPhase.MEDIA_ACTIVE && sip.state.value.srtpActive }
+            phase = "incoming_audio_statistics"
             val incoming = mediaEvidence(checkNotNull(engine), timeout)
             result.put("incoming", incoming)
             compose.onNodeWithTag("sip-active-call").performScrollTo()
@@ -101,10 +124,22 @@ class SipGatewayE2ETest {
             result.put("incoming_hangup", true)
             result.put("passed", true)
             result.put("success", true)
+        } catch (failure: Throwable) {
+            // Class name and a fixed test phase identify assertion/timeouts without
+            // exporting potentially sensitive SDK exception messages or stack frames.
+            result.put("failure_class", failure.javaClass.simpleName)
+            throw failure
         } finally {
             // Only fixed phase codes and measured facts leave the sandbox: no fixture,
             // credential, SDP key, SIP identity or raw native error messages are exported.
             result.put("completed_phase", phase)
+            main {
+                result.put("call_events", callEvents)
+                result.put("last_registration", client?.state?.value?.registration?.name ?: "not_started")
+                result.put("last_call_phase", client?.state?.value?.call?.name ?: "not_started")
+                result.put("last_srtp_active", client?.state?.value?.srtpActive ?: false)
+                engine?.removeListener(diagnosticListener)
+            }
             export("result.json", result.toString(2).toByteArray())
             main { client?.disconnect() }
             File(context.filesDir, "nexvary-sip-e2e.json").delete()

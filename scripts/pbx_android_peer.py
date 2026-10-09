@@ -19,6 +19,8 @@ class EmulatorPeer(Client):
     def __init__(self, *args, **kwargs):
         self.response_codes = []
         self.response_header_names = set()
+        self.request_method_counts = {}
+        self.dialog_step = "registration"
         self.reader_finished = False
         super().__init__(*args, **kwargs)
 
@@ -37,6 +39,11 @@ class EmulatorPeer(Client):
                 allowed = {"via", "from", "to", "call-id", "cseq", "contact",
                            "www-authenticate", "content-type", "content-length"}
                 self.response_header_names.update(set(message[1]) & allowed)
+            method = message[0].partition(" ")[0]
+            if method in {"INVITE", "ACK", "BYE", "OPTIONS", "CANCEL", "NOTIFY"}:
+                self.request_method_counts[method] = min(100, self.request_method_counts.get(method, 0)+1)
+                if method == "OPTIONS":
+                    self.okay(message)
             return predicate(message)
         return super().next(observe, timeout)
 
@@ -53,12 +60,16 @@ class EmulatorPeer(Client):
 
 
 def incoming_from_android(peer):
+    peer.dialog_step = "await_outgoing_invite"
     invite = peer.next(lambda m: m[0].startswith("INVITE "), timeout=90)
     peer.response(invite, 180, "Ringing")
     peer.response(invite, 200, "OK", peer.sdp())
+    peer.dialog_step = "await_outgoing_ack"
     peer.next(lambda m: m[0].startswith("ACK "), timeout=20)
     received = []
+    peer.dialog_step = "outgoing_srtp"
     peer.media(invite[2], received)
+    peer.dialog_step = "await_outgoing_bye"
     peer.okay(peer.next(lambda m: m[0].startswith("BYE "), timeout=30))
     if not received or received[0] < 10:
         raise RuntimeError("Android outgoing encrypted media was not received")
@@ -66,6 +77,7 @@ def incoming_from_android(peer):
 
 
 def outgoing_to_android(peer):
+    peer.dialog_step = "await_incoming_answer"
     cid = uuid.uuid4().hex
     uri = f"sip:1001@{peer.host};transport=tls"
     headers = peer.headers("INVITE", "1001", cid, 1)
@@ -90,7 +102,9 @@ def outgoing_to_android(peer):
     ack["To"] = response[1]["to"]
     peer.send("ACK "+contact+" SIP/2.0", ack)
     received = []
+    peer.dialog_step = "incoming_srtp"
     peer.media(response[2], received)
+    peer.dialog_step = "await_incoming_bye"
     peer.okay(peer.next(lambda m: m[0].startswith("BYE "), timeout=30))
     if not received or received[0] < 10:
         raise RuntimeError("Android incoming encrypted media was not received")
@@ -138,6 +152,8 @@ def run(args):
         Path(args.output).write_text(json.dumps({"success": False,
             "synthetic": True, "completed_phase": phase,
             "error_class": type(error).__name__, "cellular_tested": False,
+            "dialog_step": peer.dialog_step,
+            "sip_request_method_counts": peer.request_method_counts,
             "sip_response_codes": peer.response_codes,
             "sip_response_header_names": sorted(peer.response_header_names),
             "reader_error_class": peer.reader_error,
