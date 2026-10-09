@@ -5,6 +5,10 @@ cd "$(dirname "$0")/.."
 command -v asterisk >/dev/null
 python3 -c 'import pylibsrtp'
 test -r /usr/share/asterisk/documentation/core-en_US.xml
+module_file=$(dpkg-query -L asterisk-modules | awk '/\/res_pjsip\.so$/ && !found { path=$0; found=1 } END { print path }')
+test -n "$module_file"
+test -r "$module_file"
+module_directory=$(dirname "$module_file")
 mkdir -p pbx-evidence
 rm -f pbx-evidence/integration.json
 runtime=$(mktemp -d)
@@ -23,7 +27,7 @@ openssl req -x509 -newkey rsa:2048 -nodes -sha256 -days 1 \
   -subj '/CN=127.0.0.1' -addext 'subjectAltName=IP:127.0.0.1' \
   -keyout "$runtime/tls/privkey.pem" -out "$runtime/tls/fullchain.pem" 2>/dev/null
 chmod 600 "$runtime/tls/privkey.pem"
-RUNTIME="$runtime" python3 - <<'PY'
+RUNTIME="$runtime" AST_MODULE_DIRECTORY="$module_directory" python3 - <<'PY'
 import os
 from pathlib import Path
 r=Path(os.environ['RUNTIME'])
@@ -31,7 +35,7 @@ p=r/'config/pjsip.conf'
 p.write_text(p.read_text().replace('/etc/asterisk/tls/',str(r/'tls')+'/'))
 (r/'config/asterisk.conf').write_text(f'''[directories]
 astetcdir => {r}/config
-astmoddir => /usr/lib/asterisk/modules
+astmoddir => {os.environ['AST_MODULE_DIRECTORY']}
 astvarlibdir => /var/lib/asterisk
 astdbdir => {r}/db
 astkeydir => {r}/tls

@@ -6,11 +6,15 @@ done
 test -r /etc/asterisk/tls/fullchain.pem
 test -r /etc/asterisk/tls/privkey.pem
 test -r /usr/share/asterisk/documentation/core-en_US.xml
+module_file=$(dpkg-query -L asterisk-modules | awk '/\/res_pjsip\.so$/ && !found { path=$0; found=1 } END { print path }')
+test -n "$module_file"
+test -r "$module_file"
+module_directory=$(dirname "$module_file")
 # Runtime file lives only in the private tmpfs, never on the host /etc.
-cat > /run/asterisk/asterisk.conf <<'CONF'
+cat > /run/asterisk/asterisk.conf <<CONF
 [directories]
 astetcdir => /nexvary-config
-astmoddir => /usr/lib/asterisk/modules
+astmoddir => $module_directory
 astvarlibdir => /var/lib/asterisk
 astdbdir => /var/lib/nexvary-pbx
 astkeydir => /etc/asterisk/tls

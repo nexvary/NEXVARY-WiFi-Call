@@ -107,17 +107,19 @@ If the host cannot spare them, run this PBX/voice gateway on a separate machine.
 network registration, voice commands, audio interface, both call directions and
 two-way audio. Mere modem AT/APDU success cannot satisfy this gate. A policy also
 requires an explicit E.164 destination allowlist, positive cost estimate, worst-case
-budget reservation, maximum duration and concurrency. No cellular dialplan is
-generated, and ARI origination currently refuses cellular requests. The cellular
-state/policy engine is ready for a separately verified SIP voice gateway adapter;
-there is no claim that a USB modem audio driver is already implemented.
+budget reservation, maximum duration and concurrency. The default generator
+creates no cellular route. The separate opt-in [Cellular SIP adapter](CELLULAR-GATEWAY.md)
+can generate exact outgoing/incoming routes for a verified external voice gateway
+and admit ARI calls after durable cost reservation. It does not implement or
+claim a verified USB modem audio driver, and no cellular service is activated.
 
 Control state alone cannot tear down audio: `InternalController.tick()` retries
 failed PBX hangups, and generated internal dialplans enforce their own duration.
 Cellular routes must enforce duration and destination restrictions independently
-at the hardware-side gateway before activation. Memory policy/CDR state is for
-the isolated laboratory; durable transactional budget storage is required before
-paid cellular service. Asterisk CDR CSV uses its own volume/log directory and
+at the hardware-side gateway before activation. The base policy state is for
+the isolated laboratory; the opt-in cellular controller adds SQLite transactional
+worst-case cost reservation, retained conservatively after completion/timeouts.
+Asterisk CDR CSV uses its own volume/log directory and
 must be retained privately with limited access. These are not billing guarantees.
 
 Huawei K3770 21.023.04.00.11 / 12D1:14C9 stays unverified for voice/audio. No
@@ -146,3 +148,5 @@ documentation can prevent Stasis initialization, so the launcher checks it
 before startup. The CI harness writes only sanitized version/module metadata
 and successful synthetic-result JSON to `pbx-evidence/`; no SIP passwords,
 certificate keys, account files, SDP crypto keys or raw server logs are copied.
+The module directory is derived from `dpkg-query -L asterisk-modules` and its
+readable `res_pjsip.so` entry, so amd64/arm64 multiarch paths are not assumed.
