@@ -62,6 +62,6 @@ for attempt in $(seq 1 40); do
   sleep 0.5
 done
 # Print module/version information, never config/account files or SDP debug logs.
-asterisk -C "$runtime/config/asterisk.conf" -rx 'core show version' | tee pbx-evidence/version.txt
+asterisk -V | tee pbx-evidence/version.txt
 asterisk -C "$runtime/config/asterisk.conf" -rx 'module show like res_srtp' | tee pbx-evidence/srtp-module.txt
 python3 scripts/pbx_integration.py --ca "$runtime/tls/fullchain.pem" --accounts "$runtime/config/accounts.json" | tee pbx-evidence/integration.json

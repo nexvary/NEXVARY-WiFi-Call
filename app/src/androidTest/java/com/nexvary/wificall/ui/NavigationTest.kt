@@ -3,6 +3,7 @@ package com.nexvary.wificall.ui
 import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.os.LocaleList
+import androidx.activity.compose.LocalActivityResultRegistryOwner
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
@@ -44,7 +45,11 @@ class NavigationTest(private val language: String) {
         var permissions = 0
         compose.setContent {
             val density = LocalDensity.current
+            // Capture the real test Activity before replacing LocalContext with an
+            // application-based locale context, which cannot resolve its registry.
+            val resultOwner = checkNotNull(LocalActivityResultRegistryOwner.current)
             CompositionLocalProvider(
+                LocalActivityResultRegistryOwner provides resultOwner,
                 LocalContext provides context,
                 LocalDensity provides Density(density.density, fontScale = 1.3f),
                 LocalLayoutDirection provides if (language == "ar") LayoutDirection.Rtl else LayoutDirection.Ltr
@@ -128,7 +133,11 @@ class NavigationTest(private val language: String) {
         )
         compose.setContent {
             val density = LocalDensity.current
-            CompositionLocalProvider(LocalContext provides context,
+            // Capture the real test Activity before replacing LocalContext with an
+            // application-based locale context, which cannot resolve its registry.
+            val resultOwner = checkNotNull(LocalActivityResultRegistryOwner.current)
+            CompositionLocalProvider(LocalActivityResultRegistryOwner provides resultOwner,
+                LocalContext provides context,
                 LocalDensity provides Density(density.density, fontScale = 1.3f),
                 LocalLayoutDirection provides if (language == "ar") LayoutDirection.Rtl else LayoutDirection.Ltr) {
                 var selected by remember { mutableStateOf<Int?>(null) }
