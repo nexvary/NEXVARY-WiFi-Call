@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.Density
 import androidx.test.platform.app.InstrumentationRegistry
 import com.nexvary.wificall.R
 import com.nexvary.wificall.core.SubscriptionRef
+import org.junit.Assert.assertTrue
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -112,6 +113,12 @@ class NavigationTest(private val language: String) {
         compose.onNodeWithTag("route-carrier_wifi").performScrollTo().assertIsDisplayed()
         screenshot("call-center")
         compose.onNodeWithTag("sip-dialler").performScrollTo()
+        compose.onNodeWithTag("sip-digit-1").performScrollTo().assertIsDisplayed()
+        val digits = (1..3).map { digit -> compose.onNodeWithTag("sip-digit-$digit").fetchSemanticsNode().boundsInRoot }
+        assertTrue("Telephone keys must stay ordered 1, 2, 3 from left to right in $language",
+            digits[0].left < digits[1].left && digits[1].left < digits[2].left)
+        assertTrue("Telephone row keys must share the same vertical position in $language",
+            digits.map { it.top }.distinct().size == 1)
         compose.onNodeWithTag("sip-call").performScrollTo().assertIsNotEnabled()
         screenshot("sip-dialler")
         compose.onNodeWithTag("route-cellular_voice").performScrollTo().performClick()

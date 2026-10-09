@@ -15,6 +15,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -128,10 +130,22 @@ fun CallCenterScreen(client: SipClient, dashboard: DashboardState) {
                 try { contacts.launch(Intent(Intent.ACTION_PICK, ContactsContract.CommonDataKinds.Phone.CONTENT_URI)) }
                 catch (_: Exception) { error = context.getString(R.string.sip_contact_error) }
             }, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Default.Contacts, null); Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.sip_pick_contact)) }
-            listOf("123", "456", "789", "0").forEach { row ->
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    row.forEach { digit -> OutlinedButton(onClick = { if (target.length < 6) target += digit }, enabled = !busy, modifier = Modifier.weight(1f).heightIn(min = 48.dp)) { Text(digit.toString()) } }
-                    if (row == "0") OutlinedButton(onClick = { target = target.dropLast(1) }, enabled = !busy, modifier = Modifier.weight(1f).heightIn(min = 48.dp)) { Icon(Icons.Default.Backspace, stringResource(R.string.sip_delete_digit)) }
+            // Telephone key ordering stays physical LTR; surrounding Arabic UI remains RTL.
+            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                listOf("123", "456", "789", "0").forEach { row ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (row == "0") Spacer(Modifier.weight(1f))
+                        row.forEach { digit ->
+                            OutlinedButton(onClick = { if (target.length < 6) target += digit }, enabled = !busy,
+                                modifier = Modifier.weight(1f).heightIn(min = 48.dp).testTag("sip-digit-$digit")) {
+                                Text(digit.toString())
+                            }
+                        }
+                        if (row == "0") OutlinedButton(onClick = { target = target.dropLast(1) }, enabled = !busy,
+                            modifier = Modifier.weight(1f).heightIn(min = 48.dp)) {
+                            Icon(Icons.Default.Backspace, stringResource(R.string.sip_delete_digit))
+                        }
+                    }
                 }
             }
             Button(onClick = { try { client.dial(target); error = null } catch (_: Exception) { error = context.getString(R.string.sip_call_error) } },
