@@ -84,7 +84,7 @@ fun CallCenterScreen(client: SipClient, dashboard: DashboardState) {
             // Missing privileges concern this application's native engine, not the operator's own dialler.
             RouteAvailability.NOT_VERIFIED
         } else RouteAvailability.NOT_VERIFIED
-        OutlinedCard(onClick = { if (!busy) selected = route }, modifier = Modifier.fillMaxWidth().testTag("route-${route.name.lowercase()}")) {
+        OutlinedCard(onClick = { selected = route }, enabled = !busy, modifier = Modifier.fillMaxWidth().testTag("route-${route.name.lowercase()}")) {
             Row(Modifier.padding(12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Icon(when (route) { CallingRoute.CARRIER_WIFI -> Icons.Default.WifiCalling3; CallingRoute.EXTERNAL_USIM -> Icons.Default.SimCard; CallingRoute.CELLULAR_VOICE -> Icons.Default.Router; CallingRoute.SIP_INTERNAL -> Icons.Default.Call }, null, tint = MaterialTheme.colorScheme.primary)
                 Column(Modifier.weight(1f)) {

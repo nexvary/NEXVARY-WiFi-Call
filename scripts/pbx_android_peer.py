@@ -16,6 +16,30 @@ from pbx_integration import Client
 
 
 class EmulatorPeer(Client):
+    def __init__(self, *args, **kwargs):
+        self.response_codes = []
+        self.response_header_names = set()
+        self.reader_finished = False
+        super().__init__(*args, **kwargs)
+
+    def read(self):
+        try:
+            return super().read()
+        finally:
+            self.reader_finished = True
+
+    def next(self, predicate, timeout=10):
+        def observe(message):
+            # Values, request URI, SDP and reason phrases are never exported.
+            status = re.match(r"^SIP/2.0 ([1-6][0-9]{2})\b", message[0])
+            if status and len(self.response_codes) < 32:
+                self.response_codes.append(int(status.group(1)))
+                allowed = {"via", "from", "to", "call-id", "cseq", "contact",
+                           "www-authenticate", "content-type", "content-length"}
+                self.response_header_names.update(set(message[1]) & allowed)
+            return predicate(message)
+        return super().next(observe, timeout)
+
     def media(self, remote_sdp, result):
         # Android reaches its host at this alias; the host-side fixture uses
         # loopback. This is deliberately not evidence of deployed NAT traversal.
@@ -113,7 +137,11 @@ def run(args):
     except Exception as error:
         Path(args.output).write_text(json.dumps({"success": False,
             "synthetic": True, "completed_phase": phase,
-            "error_class": type(error).__name__, "cellular_tested": False})+"\n")
+            "error_class": type(error).__name__, "cellular_tested": False,
+            "sip_response_codes": peer.response_codes,
+            "sip_response_header_names": sorted(peer.response_header_names),
+            "reader_error_class": peer.reader_error,
+            "reader_finished": peer.reader_finished})+"\n")
         raise
     finally:
         peer.close()

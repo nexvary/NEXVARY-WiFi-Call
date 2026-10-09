@@ -18,12 +18,40 @@ runtime=$(mktemp -d)
 pbx_pid=""
 peer_pid=""
 mkdir -p android-sip-evidence
+asterisk -V > android-sip-evidence/asterisk-version.txt
+grep -Eq '^Asterisk 20\.' android-sip-evidence/asterisk-version.txt || {
+  echo 'Android SIP fixture requires the validated Asterisk 20 generation' >&2
+  exit 1
+}
 cleanup() {
   status=$?
   trap - EXIT
   adb shell run-as com.nexvary.wificall rm -f files/nexvary-sip-e2e.json 2>/dev/null || true
   if [[ -n "$peer_pid" ]]; then kill "$peer_pid" 2>/dev/null || true; wait "$peer_pid" 2>/dev/null || true; fi
   if [[ -n "$pbx_pid" ]]; then kill "$pbx_pid" 2>/dev/null || true; wait "$pbx_pid" 2>/dev/null || true; fi
+  if [[ "$status" -ne 0 ]]; then
+    RUNTIME="$runtime" python3 - <<'PY'
+import json, os
+from pathlib import Path
+r=Path(os.environ['RUNTIME'])
+# Read a bounded private log and emit only fixed categories with counts.
+# Never expose matched lines, addresses, identities, SDP or certificate details.
+p=r/'pbx.log'
+text=p.read_bytes()[:1024*1024].decode('utf-8', errors='replace').lower() if p.is_file() else ''
+categories={
+ 'module_load_failure':('unable to load module', 'error loading module', 'could not load module'),
+ 'socket_bind_failure':('unable to bind', 'address already in use'),
+ 'tls_failure':('ssl error', 'ssl handshake', 'tls error', 'certificate verify'),
+ 'endpoint_identification_failure':('no matching endpoint',),
+ 'authentication_failure':('failed to authenticate', 'authentication failed'),
+ 'configuration_failure':('could not create an object', 'could not find option', 'invalid configuration'),
+ 'registrar_failure':('unable to register', 'no aor', 'could not find aor'),
+}
+result={'synthetic':True,'success':False,'log_read_limit_bytes':1024*1024,
+        'warning_categories':{name:sum(text.count(term) for term in terms) for name,terms in categories.items()}}
+Path('android-sip-evidence/pbx-diagnostic-categories.json').write_text(json.dumps(result,indent=2)+'\n')
+PY
+  fi
   rm -rf "$runtime"
   exit "$status"
 }
@@ -71,7 +99,28 @@ for attempt in $(seq 1 40); do
   sleep 0.5
 done
 test "$ready" = true
-asterisk -V > android-sip-evidence/asterisk-version.txt
+# A TLS listener can appear before endpoint/auth/registrar initialization.
+# Run the bounded native boot barrier, then independently require the generated
+# accounts and both registration/authentication modules. CLI text stays private.
+timeout 30 asterisk -C "$runtime/config/asterisk.conf" -rx 'core waitfullybooted' > "$runtime/boot-state.txt" 2>&1
+ready=false
+for attempt in $(seq 1 30); do
+  asterisk -C "$runtime/config/asterisk.conf" -rx 'pjsip show endpoints' > "$runtime/endpoints.txt" 2>&1
+  asterisk -C "$runtime/config/asterisk.conf" -rx 'pjsip show auths' > "$runtime/auths.txt" 2>&1
+  asterisk -C "$runtime/config/asterisk.conf" -rx 'module show like res_pjsip_registrar.so' > "$runtime/registrar.txt" 2>&1
+  asterisk -C "$runtime/config/asterisk.conf" -rx 'module show like res_pjsip_authenticator_digest.so' > "$runtime/authenticator.txt" 2>&1
+  if grep -Eq 'Endpoint:[[:space:]]+1001([[:space:]]|/)' "$runtime/endpoints.txt" && \
+     grep -Eq 'Endpoint:[[:space:]]+1002([[:space:]]|/)' "$runtime/endpoints.txt" && \
+     grep -q 'auth-1001' "$runtime/auths.txt" && grep -q 'auth-1002' "$runtime/auths.txt" && \
+     grep -q 'Running' "$runtime/registrar.txt" && grep -q 'Running' "$runtime/authenticator.txt"; then
+    ready=true
+    break
+  fi
+  kill -0 "$pbx_pid" 2>/dev/null || exit 1
+  sleep 1
+done
+test "$ready" = true
+printf '%s\n' '{"synthetic":true,"generated_endpoints_ready":2,"generated_auths_ready":2,"registrar_running":true,"digest_authenticator_running":true}' > android-sip-evidence/pbx-readiness.json
 python3 scripts/pbx_android_peer.py --ca "$runtime/tls/fullchain.pem" --accounts "$runtime/config/accounts.json" \
   --ready "$runtime/peer-ready" --output android-sip-evidence/peer-result.json > "$runtime/peer.log" 2>&1 &
 peer_pid=$!
