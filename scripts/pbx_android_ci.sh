@@ -60,7 +60,12 @@ PY
   exit "$status"
 }
 trap cleanup EXIT
-python3 server/deploy/pbx/generate.py --output "$runtime/config" >/dev/null
+# The emulator must see the host alias in Asterisk's own dialog Contact/Via,
+# not host loopback. No local_net is configured: res_pjsip_nat must rewrite
+# signalling for both fixture clients, including loopback-sourced QEMU traffic.
+# The host peer sends on its existing verified TLS connection; only Android
+# resolves the advertised alias. Listener remains private 127.0.0.1:5061.
+python3 server/deploy/pbx/generate.py --output "$runtime/config" --external-address 10.0.2.2 >/dev/null
 mkdir -p "$runtime/tls" "$runtime/run" "$runtime/log" "$runtime/spool" "$runtime/db"
 openssl req -x509 -newkey rsa:2048 -nodes -sha256 -days 1 \
   -subj '/CN=10.0.2.2' -addext 'subjectAltName=IP:10.0.2.2,IP:127.0.0.1' \
@@ -71,7 +76,10 @@ import json, os
 from pathlib import Path
 r=Path(os.environ['RUNTIME'])
 p=r/'config/pjsip.conf'
-p.write_text(p.read_text().replace('/etc/asterisk/tls/', str(r/'tls')+'/').replace('direct_media=no', 'direct_media=no\nmedia_address=10.0.2.2'))
+text=p.read_text().replace('/etc/asterisk/tls/', str(r/'tls')+'/').replace('direct_media=no', 'direct_media=no\nmedia_address=10.0.2.2')
+text=text.replace('external_signaling_address=10.0.2.2', 'external_signaling_address=10.0.2.2\nexternal_signaling_port=5061')
+assert 'bind=127.0.0.1:5061' in text and 'local_net=' not in text
+p.write_text(text)
 (r/'config/http.conf').write_text('[general]\nenabled=no\n')
 (r/'config/asterisk.conf').write_text(f'''[directories]
 astetcdir => {r}/config

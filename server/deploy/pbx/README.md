@@ -150,3 +150,11 @@ and successful synthetic-result JSON to `pbx-evidence/`; no SIP passwords,
 certificate keys, account files, SDP crypto keys or raw server logs are copied.
 The module directory is derived from `dpkg-query -L asterisk-modules` and its
 readable `res_pjsip.so` entry, so amd64/arm64 multiarch paths are not assumed.
+
+The default base remains `ubuntu:24.04`. Hosted CI uses
+`--build-arg NEXVARY_BASE_IMAGE=public.ecr.aws/docker/library/ubuntu:24.04`
+to avoid shared anonymous Docker Hub download limits. This is the
+[Docker publisher's official ECR Public mirror](https://www.docker.com/blog/news-from-aws-reinvent-docker-official-images-on-amazon-ecr-public/),
+not an unofficial PBX image. The same Asterisk version, startup and isolation
+checks remain required. Operators may use this build argument after reviewing
+their registry policy; it does not alter running services or network rules.

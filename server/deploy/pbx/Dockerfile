@@ -1,4 +1,5 @@
-FROM ubuntu:24.04
+ARG NEXVARY_BASE_IMAGE=ubuntu:24.04
+FROM ${NEXVARY_BASE_IMAGE}
 ENV DEBIAN_FRONTEND=noninteractive
 RUN printf '#!/bin/sh\nexit 101\n' > /usr/sbin/policy-rc.d \
     && chmod 755 /usr/sbin/policy-rc.d \

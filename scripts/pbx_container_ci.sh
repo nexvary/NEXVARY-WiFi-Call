@@ -24,7 +24,11 @@ NEXVARY_PBX_CONFIG=$runtime/config
 NEXVARY_TLS_CERT=$runtime/tls/fullchain.pem
 NEXVARY_TLS_KEY=$runtime/tls/privkey.pem
 ENV
-"${compose[@]}" build
+# Docker publishes the official Ubuntu image to ECR Public as well as Hub.
+# Hosted runners share anonymous Hub limits; use the publisher's mirror in CI
+# while leaving the normal deployment default unchanged. All startup and
+# isolation assertions below still execute against the built runtime.
+"${compose[@]}" build --build-arg NEXVARY_BASE_IMAGE=public.ecr.aws/docker/library/ubuntu:24.04
 "${compose[@]}" up -d
 container=$("${compose[@]}" ps -q pbx)
 for attempt in $(seq 1 60); do

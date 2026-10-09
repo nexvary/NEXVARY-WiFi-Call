@@ -25,6 +25,7 @@ class EmulatorPeer(Client):
         self.dialog_step = "registration"
         self.reader_finished = False
         self.media_dialogs = 1
+        self.decrypted_packets = {"outgoing": None, "incoming": None}
         super().__init__(*args, **kwargs)
 
     def fresh_media_dialog(self):
@@ -92,10 +93,11 @@ def incoming_from_android(peer):
     received = []
     peer.dialog_step = "outgoing_srtp"
     peer.media(invite[2], received)
-    peer.dialog_step = "await_outgoing_bye"
-    peer.okay(peer.next(lambda m: m[0].startswith("BYE "), timeout=30))
     if not received or received[0] < 10:
         raise RuntimeError("Android outgoing encrypted media was not received")
+    peer.decrypted_packets["outgoing"] = received[0]
+    peer.dialog_step = "await_outgoing_bye"
+    peer.okay(peer.next(lambda m: m[0].startswith("BYE "), timeout=30))
     return received[0]
 
 
@@ -127,10 +129,11 @@ def outgoing_to_android(peer):
     received = []
     peer.dialog_step = "incoming_srtp"
     peer.media(response[2], received)
-    peer.dialog_step = "await_incoming_bye"
-    peer.okay(peer.next(lambda m: m[0].startswith("BYE "), timeout=30))
     if not received or received[0] < 10:
         raise RuntimeError("Android incoming encrypted media was not received")
+    peer.decrypted_packets["incoming"] = received[0]
+    peer.dialog_step = "await_incoming_bye"
+    peer.okay(peer.next(lambda m: m[0].startswith("BYE "), timeout=30))
     return received[0]
 
 
@@ -181,7 +184,8 @@ def run(args):
             "dialog_step": peer.dialog_step,
             "outgoing_answer_and_hangup": outgoing_packets is not None and outgoing_packets >= 10,
             "fresh_rtp_socket_per_dialog": peer.media_dialogs == 2,
-            "decrypted_srtp_from_android_packets": {"outgoing": outgoing_packets, "incoming": None},
+            "incoming_answer_and_hangup": False,
+            "decrypted_srtp_from_android_packets": peer.decrypted_packets,
             "sip_request_method_counts": peer.request_method_counts,
             "sip_response_codes": peer.response_codes,
             "sip_response_header_names": sorted(peer.response_header_names),
