@@ -103,6 +103,16 @@ class NavigationTest(private val language: String) {
         compose.onNodeWithContentDescription(text(R.string.back)).performClick()
         compose.onNodeWithText(text(R.string.language)).performScrollTo().assertIsDisplayed()
         screenshot("settings")
+        compose.onNodeWithText(text(R.string.call_center)).performScrollTo().performClick()
+        compose.onNodeWithTag("route-carrier_wifi").performScrollTo().assertIsDisplayed()
+        screenshot("call-center")
+        compose.onNodeWithTag("sip-dialler").performScrollTo()
+        compose.onNodeWithTag("sip-call").performScrollTo().assertIsNotEnabled()
+        screenshot("sip-dialler")
+        compose.onNodeWithTag("route-cellular_voice").performScrollTo().performClick()
+        compose.onNodeWithText(text(R.string.cellular_route_boundary)).performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag("sip-call").assertDoesNotExist()
+        compose.onNodeWithContentDescription(text(R.string.back)).performClick()
     }
 
     @Test fun dualSimSelectorChoosesBothActualSubscriptionIds() {

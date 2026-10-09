@@ -29,6 +29,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalContext
+import com.nexvary.wificall.platform.sip.SipClient
+import com.nexvary.wificall.platform.sip.SipCallPhase
 import com.nexvary.wificall.BuildConfig
 import com.nexvary.wificall.R
 import com.nexvary.wificall.core.*
@@ -44,6 +47,9 @@ import com.nexvary.wificall.platform.PhoneAsSimCapability
     onSelectSubscription: (Int) -> Unit = {},
     onModeChange: (AppMode) -> Unit = {}
 ) {
+    val appContext = LocalContext.current.applicationContext
+    val sipClient = remember { SipClient.get(appContext) }
+    val sipState by sipClient.state.collectAsState()
     var page by rememberSaveable { mutableStateOf(AppPage.HOME) }
     var returnPage by rememberSaveable { mutableStateOf(AppPage.HOME) }
     var mode by rememberSaveable { mutableStateOf(initial.mode) }
@@ -51,6 +57,7 @@ import com.nexvary.wificall.platform.PhoneAsSimCapability
     val tabs = listOf(AppPage.HOME, AppPage.SIMS, AppPage.DIAGNOSTICS, AppPage.SETTINGS)
     fun open(destination: AppPage) { returnPage = page; page = destination }
     fun back() { page = if (page in tabs) AppPage.HOME else returnPage }
+    LaunchedEffect(sipState.call) { if (sipState.call == SipCallPhase.INCOMING) open(AppPage.CALL_CENTER) }
     BackHandler(enabled = page != AppPage.HOME) { back() }
     Scaffold(
         topBar = { TopAppBar(
@@ -89,6 +96,7 @@ import com.nexvary.wificall.platform.PhoneAsSimCapability
         when (page) {
             AppPage.HOME -> {
                 StatusRing(initial)
+                Action(R.string.call_center, Icons.Default.Call) { open(AppPage.CALL_CENTER) }
                 Button(onClick = { onRefresh(); open(AppPage.DIAGNOSTICS) }, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) {
                     Icon(Icons.Default.Radar, null, Modifier.size(22.dp)); Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.start_check))
                 }
@@ -115,10 +123,12 @@ import com.nexvary.wificall.platform.PhoneAsSimCapability
             AppPage.COMPATIBILITY -> { Metric(R.string.carrier_evidence, label(initial.evidence)); InfoCard(stringResource(R.string.compatibility_explanation)) }
             AppPage.PRIVACY -> { InfoCard(stringResource(R.string.privacy_simple)); InfoCard(stringResource(R.string.privacy_secrets)); InfoCard(stringResource(R.string.privacy_exports)) }
             AppPage.ABOUT -> AboutDeveloperScreen()
+            AppPage.CALL_CENTER -> CallCenterScreen(sipClient, initial)
             AppPage.GATEWAY -> GatewayScreen(initial)
             AppPage.SETTINGS -> {
                 ModeCard(mode) { mode = mode.toggle(); onModeChange(mode) }
                 LanguagePicker(language, onLanguageChange)
+                Action(R.string.call_center, Icons.Default.Call) { open(AppPage.CALL_CENTER) }
                 Action(R.string.gateway_title, Icons.Default.CloudSync) { open(AppPage.GATEWAY) }
                 Action(R.string.privacy, Icons.Default.PrivacyTip) { open(AppPage.PRIVACY) }
                 Action(R.string.about_developer, Icons.Default.Business) { open(AppPage.ABOUT) }
@@ -136,6 +146,7 @@ private fun AppPage.title() = when (this) {
     AppPage.HOME -> R.string.home; AppPage.SIMS -> R.string.sims; AppPage.CHANGES -> R.string.changes
     AppPage.DIAGNOSTICS -> R.string.diagnostics; AppPage.COMPATIBILITY -> R.string.compatibility
     AppPage.PRIVACY -> R.string.privacy; AppPage.ABOUT -> R.string.about_developer; AppPage.SETTINGS -> R.string.settings
+    AppPage.CALL_CENTER -> R.string.call_center
     AppPage.GATEWAY -> R.string.gateway_title
 }
 private fun AppPage.icon(): ImageVector = when (this) { AppPage.HOME -> Icons.Default.Home; AppPage.SIMS -> Icons.Default.SimCard; AppPage.DIAGNOSTICS -> Icons.Default.Troubleshoot; else -> Icons.Default.Settings }

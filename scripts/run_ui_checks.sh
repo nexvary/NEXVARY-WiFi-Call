@@ -13,7 +13,7 @@ collect_screenshots() {
     fi
     if [ "$test_status" -eq 0 ]; then
         for locale in ar en tr es de it fr; do
-            for page in home diagnostics diagnostics-lab diagnostics-audio sims sims-selected about settings; do
+            for page in home diagnostics diagnostics-lab diagnostics-audio sims sims-selected about settings call-center sip-dialler; do
                 if [ ! -s "ui-screenshots/$locale-$page.png" ]; then
                     echo "Missing screenshot: $locale-$page.png" >&2
                     test_status=1

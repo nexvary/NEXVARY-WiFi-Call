@@ -14,14 +14,16 @@ android {
         applicationId = "com.nexvary.wificall"
         minSdk = 26
         targetSdk = 35
-        versionCode = 6
-        versionName = "0.5.0-alpha01"
+        versionCode = 7
+        versionName = "0.6.0-alpha01"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     buildFeatures { compose = true; buildConfig = true }
 }
 dependencies {
     implementation(project(":core-model"))
+    implementation("org.linphone:linphone-sdk-android:5.4.100")
+    implementation("androidx.media:media:1.7.0")
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.activity:activity-compose:1.10.0")
     implementation("com.google.android.gms:play-services-code-scanner:16.1.0")

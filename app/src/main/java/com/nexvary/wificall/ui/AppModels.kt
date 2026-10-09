@@ -4,7 +4,7 @@ import com.nexvary.wificall.core.*
 import com.nexvary.wificall.platform.PhoneAsSimProbeResult
 
 enum class AppMode { CONSUMER, LAB }
-enum class AppPage { HOME, SIMS, CHANGES, DIAGNOSTICS, COMPATIBILITY, PRIVACY, ABOUT, SETTINGS, GATEWAY }
+enum class AppPage { HOME, SIMS, CHANGES, DIAGNOSTICS, COMPATIBILITY, PRIVACY, ABOUT, SETTINGS, GATEWAY, CALL_CENTER }
 data class DashboardState(
     val readiness: ReadinessResult,
     val quality: QualityResult,

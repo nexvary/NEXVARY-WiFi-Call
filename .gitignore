@@ -12,3 +12,6 @@ captures/
 *.pcapng
 __pycache__/
 *.pyc
+
+.kotlin/
+pbx-evidence/
