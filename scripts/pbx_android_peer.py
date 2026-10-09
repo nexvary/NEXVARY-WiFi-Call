@@ -7,7 +7,9 @@ digest framing from the independent two-client PBX integration test.
 """
 import argparse
 import json
+import os
 import re
+import socket
 import subprocess
 import time
 import uuid
@@ -22,7 +24,28 @@ class EmulatorPeer(Client):
         self.request_method_counts = {}
         self.dialog_step = "registration"
         self.reader_finished = False
+        self.media_dialogs = 1
         super().__init__(*args, **kwargs)
+
+    def fresh_media_dialog(self):
+        # Bind while the old socket still owns its port: the next dialog must
+        # use a different UDP port, so delayed/queued packets from the first
+        # dialog can never be authenticated against the second SDES context.
+        # Authentication errors remain fatal; no packets are silently ignored.
+        replacement = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            replacement.bind(("127.0.0.1", 0))
+            replacement.settimeout(.1)
+            if replacement.getsockname()[1] == self.rtp.getsockname()[1]:
+                raise RuntimeError("RTP dialog port isolation failed")
+        except Exception:
+            replacement.close()
+            raise
+        previous = self.rtp
+        self.rtp = replacement
+        self.key = os.urandom(30)
+        self.media_dialogs += 1
+        previous.close()
 
     def read(self):
         try:
@@ -131,13 +154,15 @@ def run(args):
     accounts = json.loads(Path(args.accounts).read_text())["accounts"]
     peer = EmulatorPeer("1002", accounts["1002"], "127.0.0.1", 5061, args.ca)
     phase = "registration"
+    outgoing_packets = None
     try:
         peer.register()
         Path(args.ready).write_text("registered\n")
         phase = "android_outgoing"
-        outgoing = incoming_from_android(peer)
+        outgoing_packets = incoming_from_android(peer)
         phase = "android_dialog_release"
         wait_android_ready()
+        peer.fresh_media_dialog()
         phase = "android_incoming"
         incoming = outgoing_to_android(peer)
         Path(args.output).write_text(json.dumps({
@@ -146,13 +171,17 @@ def run(args):
             "real_nat_tested": False, "emulator_host_alias_mapping": True,
             "tls_peer_certificate_verified": True, "digest_registration": True,
             "outgoing_answer_and_hangup": True, "incoming_answer_and_hangup": True,
-            "decrypted_srtp_from_android_packets": {"outgoing": outgoing, "incoming": incoming},
+            "fresh_rtp_socket_per_dialog": peer.media_dialogs == 2,
+            "decrypted_srtp_from_android_packets": {"outgoing": outgoing_packets, "incoming": incoming},
         }, indent=2)+"\n")
     except Exception as error:
         Path(args.output).write_text(json.dumps({"success": False,
             "synthetic": True, "completed_phase": phase,
             "error_class": type(error).__name__, "cellular_tested": False,
             "dialog_step": peer.dialog_step,
+            "outgoing_answer_and_hangup": outgoing_packets is not None and outgoing_packets >= 10,
+            "fresh_rtp_socket_per_dialog": peer.media_dialogs == 2,
+            "decrypted_srtp_from_android_packets": {"outgoing": outgoing_packets, "incoming": None},
             "sip_request_method_counts": peer.request_method_counts,
             "sip_response_codes": peer.response_codes,
             "sip_response_header_names": sorted(peer.response_header_names),
