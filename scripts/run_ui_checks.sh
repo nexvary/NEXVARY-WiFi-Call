@@ -31,4 +31,5 @@ collect_screenshots() {
 }
 trap collect_screenshots EXIT
 adb shell rm -rf /sdcard/Download/NEXVARY-WiFi-Call-screenshots
-gradle :app:connectedDebugAndroidTest --stacktrace
+gradle :app:connectedDebugAndroidTest --stacktrace \
+    -Pandroid.testInstrumentationRunnerArguments.notClass=com.nexvary.wificall.platform.sip.SipGatewayE2ETest

@@ -79,3 +79,50 @@ jobs:
             ui-screenshots
             app/build/reports/androidTests
             app/build/outputs/androidTest-results
+
+  android-sip-e2e:
+    needs: verify
+    # x86_64/KVM emulator pool; native Ubuntu 22 fixture records its actual
+    # Asterisk version separately from Ubuntu 24 deployment/container evidence.
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+          cache-read-only: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies on disposable hosted runner
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y asterisk libsrtp2-dev
+          python3 -m pip install pylibsrtp==1.0.0
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_2
+          disable-animations: true
+          script: |
+            gradle :app:installDebug :app:installDebugAndroidTest --stacktrace
+            bash scripts/pbx_android_ci.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: NEXVARY-Android-SIP-E2E
+          path: android-sip-evidence/
+          if-no-files-found: error
