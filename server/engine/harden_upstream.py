@@ -191,10 +191,18 @@ def stage(source, destination):
     adapter_out = destination / 'engine/nexvary_aka_backend.py'
     adapter_out.write_bytes(adapter_bytes)
     adapter_out.chmod(0o600)
+    usb_adapter = Path(__file__).resolve().with_name('nexvary_usb_backend.py')
+    if usb_adapter.is_symlink() or not usb_adapter.is_file():
+        raise ValueError('Reviewed USB backend missing')
+    usb_bytes = usb_adapter.read_bytes()
+    compile(usb_bytes, '<usb-backend>', 'exec')
+    usb_out = destination / 'engine/nexvary_usb_backend.py'
+    usb_out.write_bytes(usb_bytes); usb_out.chmod(0o600)
     (destination / 'NEXVARY-AUDIT.json').write_text(json.dumps({
         'upstream_revision': PIN, 'source_sha256': HASHES,
         'modified_files': list(HASHES),
-        'added_files': ['engine/nexvary_aka_backend.py'],
+        'added_files': ['engine/nexvary_aka_backend.py','engine/nexvary_usb_backend.py'],
+        'usb_adapter_sha256': hashlib.sha256(usb_bytes).hexdigest(),
         'adapter_sha256': hashlib.sha256(adapter_bytes).hexdigest(),
         'gateway_verified': False, 'execution_reviewed': False,
         'limitations': ['No subscriber identity from sanitized phone reports',

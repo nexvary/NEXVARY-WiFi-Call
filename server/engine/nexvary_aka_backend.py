@@ -179,9 +179,24 @@ def get_backend():
         with os.fdopen(descriptor, 'r', encoding='utf-8') as handle:
             descriptor = None
             config = json.load(handle)
-        if not isinstance(config, dict) or set(config) != {'token', 'device_id'}:
+        if not isinstance(config, dict):
             raise AkaUnavailable('Invalid engine authorization.')
-        return PhoneAkaBackend(config['token'], config['device_id'])
+        if set(config) == {'token', 'device_id'}:
+            return PhoneAkaBackend(config['token'], config['device_id'])
+        fields = {'backend','port','device_key','token','server_ca','client_cert','client_key','server_pin'}
+        if set(config) not in (fields, fields | {'identity'}) or config['backend'] != 'usb':
+            raise AkaUnavailable('Invalid engine authorization.')
+        for name in ('server_ca','client_cert','client_key'):
+            value = config[name]
+            if not isinstance(value,str) or not os.path.isabs(value) or os.path.islink(value):
+                raise AkaUnavailable('Invalid USB TLS configuration.')
+            info = os.stat(value, follow_symlinks=False)
+            if not stat.S_ISREG(info.st_mode) or info.st_uid != os.geteuid() or stat.S_IMODE(info.st_mode) != 0o600:
+                raise AkaUnavailable('USB TLS files must be private owned regular files.')
+        if not isinstance(config['device_key'],str) or not 1 <= len(config['device_key']) <= 128:
+            raise AkaUnavailable('Invalid selected USB modem.')
+        from nexvary_usb_backend import UsbAkaBackend
+        return UsbAkaBackend(**{k:v for k,v in config.items() if k != 'backend'})
     except AkaUnavailable:
         raise
     except Exception:
