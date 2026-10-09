@@ -27,7 +27,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: nexvary/NEXVARY-USB
-          ref: ed63b2c911dc52ae31da10ea6155f97f687f0799
+          ref: 6fbda3a95e75beef337e967b10ffe676ed62da87
           path: usb-reference
       - name: Test fail-closed engine staging and transient AKA adapter
         env:

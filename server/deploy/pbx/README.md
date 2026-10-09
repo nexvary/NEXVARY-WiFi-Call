@@ -138,3 +138,11 @@ each installed optional module before distributing runtime binaries. `pylibsrtp`
 FreePBX/FreeSWITCH/chan_dongle sources are not copied or bundled. The Linux distro
 package version must be recorded by CI; no compatibility claim extends to every
 Asterisk version or every modem firmware.
+
+The Ubuntu runtime sets `astdatadir` to `/usr/share/asterisk`, where the distro
+[package installs XML documentation and ARI resources](https://packages.ubuntu.com/noble/arm64/asterisk/filelist).
+This differs from the generic upstream `/var/lib/asterisk` example. Missing XML
+documentation can prevent Stasis initialization, so the launcher checks it
+before startup. The CI harness writes only sanitized version/module metadata
+and successful synthetic-result JSON to `pbx-evidence/`; no SIP passwords,
+certificate keys, account files, SDP crypto keys or raw server logs are copied.

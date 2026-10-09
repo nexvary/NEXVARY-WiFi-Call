@@ -17,6 +17,7 @@ class Pbx:
             raise RuntimeError("timeout")
         return {"id": "synthetic"}
     def hangup(self, call_id):
+        self.requests.append(("hangup", call_id))
         if self.fail:
             raise RuntimeError("timeout")
 
@@ -42,6 +43,7 @@ class Tests(unittest.TestCase):
         self.temp.cleanup()
     def write(self):
         self.path.write_text(json.dumps(self.manifest))
+        self.path.chmod(0o600)
     def test_candidate_routes_are_exact_and_isolated(self):
         candidate_config(self.path, self.root/"candidate", 1000)
         config = (self.root/"candidate/cellular-extensions.conf").read_text()
@@ -94,6 +96,56 @@ class Tests(unittest.TestCase):
         controller.confirm_hangup("a", call.id)
         with self.assertRaises(PermissionError):
             controller.originate("a", "+201012345678", "field-gateway")
+
+    def test_sim_removed_teardown_retried_and_budget_held(self):
+        pbx = Pbx()
+        controller = CellularController(Calls(lambda: 1000), pbx, BudgetLedger(self.root/"budget.sqlite"), {"field-gateway": self.path})
+        call = controller.originate("a", "+201012345678", "field-gateway")
+        self.manifest["evidence"]["sim_present"] = False
+        self.write()
+        pbx.fail = True
+        controller.tick()
+        self.assertIn(call.id, controller.pending_hangups)
+        self.assertEqual(call.failure, "gateway_unavailable")
+        pbx.fail = False
+        controller.tick()
+        self.assertNotIn(call.id, controller.pending_hangups)
+        self.assertGreaterEqual(sum(r[0] == "hangup" for r in pbx.requests), 2)
+
+    def test_private_manifest_parent_symlink_and_duplicate_keys(self):
+        self.path.chmod(0o644)
+        with self.assertRaises(PermissionError):
+            read_manifest(self.path, 1000)
+        self.path.chmod(0o600)
+        self.root.chmod(0o755)
+        with self.assertRaises(PermissionError):
+            read_manifest(self.path, 1000)
+        self.root.chmod(0o700)
+        link = self.root/"manifest-link.json"
+        link.symlink_to(self.path)
+        with self.assertRaises(PermissionError):
+            read_manifest(link, 1000)
+        self.path.write_text('{"schema":"one","schema":"two"}')
+        with self.assertRaises(ValueError):
+            read_manifest(self.path, 1000)
+        self.path.write_text(" "*16385)
+        with self.assertRaises(PermissionError):
+            read_manifest(self.path, 1000)
+
+    def test_private_ledger_parent_and_symlink(self):
+        self.root.chmod(0o755)
+        with self.assertRaises(PermissionError):
+            BudgetLedger(self.root/"new.sqlite")
+        self.root.chmod(0o700)
+        target = self.root/"target.sqlite"
+        BudgetLedger(target)
+        link = self.root/"db-link.sqlite"
+        link.symlink_to(target)
+        with self.assertRaises(PermissionError):
+            BudgetLedger(link)
+        target.chmod(0o644)
+        with self.assertRaises(PermissionError):
+            BudgetLedger(target)
 
 
 if __name__ == "__main__":

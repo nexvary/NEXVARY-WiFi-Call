@@ -5,17 +5,50 @@ voice gateway's SIP/media service; it does not emulate a USB modem audio driver.
 """
 from decimal import Decimal
 import json
+import os
 from pathlib import Path
 import re
 import secrets
 import sqlite3
+import stat
 import time
 from .calls import Calls, Policy, Route, State, VoiceEvidence
 
 
+def private_parent(path):
+    path = os.path.abspath(path)
+    if os.path.realpath(path) != path:
+        raise PermissionError("Private state path must not contain symlinks")
+    info = os.lstat(os.path.dirname(path))
+    if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid() or stat.S_IMODE(info.st_mode) != 0o700:
+        raise PermissionError("Private state parent must be owned by service administrator and mode 0700")
+    return path
+
+
+def unique_object(items):
+    result = {}
+    for key, value in items:
+        if key in result:
+            raise ValueError("Duplicate manifest key")
+        result[key] = value
+    return result
+
+
 def read_manifest(path, now=None):
     now = time.time() if now is None else now
-    manifest = json.loads(Path(path).read_text())
+    path = private_parent(path)
+    fd = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0))
+    with os.fdopen(fd, "rb") as stream:
+        info = os.fstat(stream.fileno())
+        if (not stat.S_ISREG(info.st_mode) or stat.S_IMODE(info.st_mode) != 0o600
+                or info.st_uid != os.getuid() or info.st_nlink != 1 or info.st_size > 16384):
+            raise PermissionError("Manifest must be a private admin-owned regular file of at most 16 KiB")
+        raw = stream.read(16385)
+        if len(raw) > 16384:
+            raise ValueError("Manifest exceeds size limit")
+    manifest = json.loads(raw, object_pairs_hook=unique_object)
+    if not isinstance(manifest, dict):
+        raise ValueError("Manifest must be an object")
     if manifest.get("schema") != "nexvary.cellular-sip-gateway.v1":
         raise ValueError("Unknown gateway manifest")
     if (manifest.get("trusted_admin_consent") is not True or manifest.get("carrier_use_authorized") is not True
@@ -54,14 +87,13 @@ All completed calls remain charged their reserved maximum until an operator
 reconciles trustworthy CDRs. This intentionally favors avoiding unexpected fees.
 """
     def __init__(self, path):
-        self.path = str(path)
+        self.path = private_parent(path)
         # File and parent must be private. Caller chooses a private state directory.
-        import os
-        import stat
-        fd = os.open(self.path, os.O_WRONLY | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0), 0o600)
+        fd = os.open(self.path, os.O_WRONLY | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0), 0o600)
         try:
             info = os.fstat(fd)
-            if not stat.S_ISREG(info.st_mode) or stat.S_IMODE(info.st_mode) != 0o600 or info.st_nlink != 1:
+            if (not stat.S_ISREG(info.st_mode) or stat.S_IMODE(info.st_mode) != 0o600
+                    or info.st_nlink != 1 or info.st_uid != os.getuid()):
                 raise PermissionError("Ledger must be a private regular file")
         finally:
             os.close(fd)
@@ -89,6 +121,7 @@ class CellularController:
     def __init__(self, calls: Calls, pbx, ledger: BudgetLedger, manifests: dict[str, Path]):
         self.calls, self.pbx, self.ledger = calls, pbx, ledger
         self.manifests = dict(manifests)
+        self.pending_hangups = set()
 
     def originate(self, owner, destination, gateway):
         # Freshly re-read trusted evidence for every call. No client-uploaded manifest.
@@ -121,8 +154,26 @@ class CellularController:
         if call.owner != owner:
             raise PermissionError("Call belongs to another user")
         self.pbx.hangup(call_id)
-        self.calls.transition(call_id, State.ENDED)
+        if call.state not in (State.ENDED, State.FAILED):
+            self.calls.transition(call_id, State.ENDED)
         self.ledger.confirm_ended(call_id)
+
+    def tick(self):
+        """Trusted service must run periodically; PBX also enforces media duration."""
+        for gateway, path in self.manifests.items():
+            try:
+                _, evidence, _ = read_manifest(path, self.calls.clock())
+            except (OSError, ValueError, TypeError, KeyError, PermissionError):
+                evidence = VoiceEvidence(gateway)
+            self.calls.gateways[gateway] = evidence
+        self.pending_hangups.update(self.calls.terminate_due())
+        for call_id in list(self.pending_hangups):
+            try:
+                self.pbx.hangup(call_id)
+            except RuntimeError:
+                continue
+            self.ledger.confirm_ended(call_id)
+            self.pending_hangups.discard(call_id)
 
 
 def candidate_config(manifest_path, output, now=None):

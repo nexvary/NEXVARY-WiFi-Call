@@ -4,6 +4,9 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 command -v asterisk >/dev/null
 python3 -c 'import pylibsrtp'
+test -r /usr/share/asterisk/documentation/core-en_US.xml
+mkdir -p pbx-evidence
+rm -f pbx-evidence/integration.json
 runtime=$(mktemp -d)
 pbx_pid=""
 cleanup() {
@@ -32,7 +35,7 @@ astmoddir => /usr/lib/asterisk/modules
 astvarlibdir => /var/lib/asterisk
 astdbdir => {r}/db
 astkeydir => {r}/tls
-astdatadir => /var/lib/asterisk
+astdatadir => /usr/share/asterisk
 astagidir => {r}/spool
 astspooldir => {r}/spool
 astrundir => {r}/run
@@ -55,6 +58,6 @@ for attempt in $(seq 1 40); do
   sleep 0.5
 done
 # Print module/version information, never config/account files or SDP debug logs.
-asterisk -C "$runtime/config/asterisk.conf" -rx 'core show version'
-asterisk -C "$runtime/config/asterisk.conf" -rx 'module show like res_srtp'
-python3 scripts/pbx_integration.py --ca "$runtime/tls/fullchain.pem" --accounts "$runtime/config/accounts.json"
+asterisk -C "$runtime/config/asterisk.conf" -rx 'core show version' | tee pbx-evidence/version.txt
+asterisk -C "$runtime/config/asterisk.conf" -rx 'module show like res_srtp' | tee pbx-evidence/srtp-module.txt
+python3 scripts/pbx_integration.py --ca "$runtime/tls/fullchain.pem" --accounts "$runtime/config/accounts.json" | tee pbx-evidence/integration.json

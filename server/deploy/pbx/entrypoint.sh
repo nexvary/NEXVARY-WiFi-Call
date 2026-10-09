@@ -5,6 +5,7 @@ for required in pjsip.conf extensions.conf rtp.conf modules.conf; do
 done
 test -r /etc/asterisk/tls/fullchain.pem
 test -r /etc/asterisk/tls/privkey.pem
+test -r /usr/share/asterisk/documentation/core-en_US.xml
 # Runtime file lives only in the private tmpfs, never on the host /etc.
 cat > /run/asterisk/asterisk.conf <<'CONF'
 [directories]
@@ -13,7 +14,7 @@ astmoddir => /usr/lib/asterisk/modules
 astvarlibdir => /var/lib/asterisk
 astdbdir => /var/lib/nexvary-pbx
 astkeydir => /etc/asterisk/tls
-astdatadir => /var/lib/asterisk
+astdatadir => /usr/share/asterisk
 astagidir => /var/spool/asterisk
 astspooldir => /var/spool/asterisk
 astrundir => /run/asterisk

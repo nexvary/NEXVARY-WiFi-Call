@@ -62,7 +62,7 @@ class SipClient private constructor(context: Context) {
         try {
             val factory = Factory.instance()
             factory.setDebugMode(false, "NEXVARY")
-            LoggingService.instance().setLogLevelMask(0)
+            factory.loggingService.setLogLevelMask(0)
             // In-memory Config prevents SIP passwords and call details being written to a config file.
             val config = factory.createConfigFromString("[sip]\nstore_auth_info=0\n[storage]\nuri=null\n")
             val engine = factory.createCoreWithConfig(config, context)
