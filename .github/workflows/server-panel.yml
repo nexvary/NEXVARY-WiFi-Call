@@ -27,12 +27,16 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: nexvary/NEXVARY-USB
-          ref: 6fbda3a95e75beef337e967b10ffe676ed62da87
+          ref: 89ae8842c3e7319d3866876121fea252a7b5ce32
           path: usb-reference
       - name: Test fail-closed engine staging and transient AKA adapter
         env:
           NEXVARY_USB_ROOT: ${{ github.workspace }}/usb-reference
         run: python3 -m unittest discover -s server/engine -p 'test_*.py' -v
+      - name: Actual USB CSIM broker over mTLS with synthetic card
+        env:
+          NEXVARY_WIFI_ENGINE: ${{ github.workspace }}/server/engine
+        run: python3 usb-reference/scripts/check_engine_bridge.py
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
