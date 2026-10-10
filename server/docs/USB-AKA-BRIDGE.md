@@ -60,3 +60,11 @@ changes are performed by this integration.
 Still required in the field: EF_DIR/ADF on the actual K3770 firmware, a real
 operator challenge, AKA result, carrier eligibility, ePDG, IMS and calls.
 CCHO/CGLA are no longer mandatory for the explicitly selected CSIM backend.
+
+## 0.10.1 boundary hardening
+
+The independent USB client consumes each challenge once and latches its session unavailable after a dispatched request fails or returns malformed/unauthorized output. It cannot silently reconnect with a fresh request ID after an uncertain card outcome. The local CSIM backend revokes authorization after operation failure; the host bridge checks authorization again before serializing success. New owner consent/provisioned authorization is required to resume.
+
+`server/engine/strongswan_card_adapter.py` implements a **staging callback contract**, reviewed against strongSwan `src/libsimaka/simaka_card.h` at a718759e5a2de5aba8c8da985c773a2ab9cff186. `get_quintuplet` maps the existing pinned mTLS USB backend to SUCCESS / FAILED / INVALID_STATE and CK/IK/RES in native API order. `resync` consumes cached AUTS for the matching identity/RAND once within 30 seconds, without a second AUTH. Identity must match the explicit provisioned NAI. No GSM triplet emulation, software Ki/OPc, public APDU endpoint, persistent quintuplet database, pseudonym or fast-reauthentication store is added.
+
+Tests use synthetic callback data and an actual TLS roundtrip against USB Studio. This Python adapter is **not a native charon plugin**. Native libsimaka plugin wiring, process isolation and secret-memory review remain required before deployment. No strongSwan process, IPsec route, gateway, ePDG session, IMS registration or call was started by these tests. Upstream interface is GPL-2.0-or-later; no source from it was copied into this Python adapter. A future linked native plugin must comply with applicable strongSwan licenses.

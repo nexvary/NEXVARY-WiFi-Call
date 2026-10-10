@@ -19,7 +19,12 @@ class CrossRepositoryTests(unittest.TestCase):
                     dest=base/name;shutil.copyfile(CERTS/name,dest);dest.chmod(0o600);config[field]=str(dest)
                 auth=base/'auth.json';auth.write_text(json.dumps(config));auth.chmod(0o600)
                 with patch.dict(os.environ,{'NEXVARY_ENGINE_AUTH_FILE':str(auth)}):
-                    self.assertEqual(('12'*4,'34'*16,'56'*16),get_backend().authenticate('11'*16,'22'*16))
+                    client=get_backend()
+                    self.assertEqual(('12'*4,'34'*16,'56'*16),client.authenticate('11'*16,'22'*16))
+                    with self.assertRaises(AkaUnavailable):client.authenticate('11'*16,'22'*16)
+                    with patch('nexvary_usb_backend.http.client.HTTPSConnection.request',side_effect=TimeoutError()):
+                        with self.assertRaises(AkaUnavailable):client.authenticate('55'*16,'66'*16)
+                    with self.assertRaises(AkaUnavailable):client.authenticate('77'*16,'88'*16)
                     self.assertEqual(1,backend.calls)
                     config['device_key']='other-modem';auth.write_text(json.dumps(config))
                     with self.assertRaises(AkaUnavailable):get_backend().authenticate('33'*16,'44'*16)
