@@ -1,0 +1,47 @@
+name: nexvary-turn-isolated
+services:
+  turn:
+    build: .
+    image: nexvary-turn:4.6.1-noble
+    restart: "no"
+    user: "10002:10002"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 64
+    mem_limit: 128m
+    cpus: 0.5
+    ports:
+      - "${NEXVARY_TURN_BIND_IP:-127.0.0.1}:5349:5349/tcp"
+      - "${NEXVARY_TURN_BIND_IP:-127.0.0.1}:24000-24031:24000-24031/udp"
+    volumes:
+      - type: bind
+        source: ${NEXVARY_TURN_CONFIG:?Set absolute private configuration path}
+        target: /nexvary-config
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${NEXVARY_TURN_TLS_CERT:?Set absolute fullchain certificate file}
+        target: /etc/nexvary-turn/tls/fullchain.pem
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${NEXVARY_TURN_TLS_KEY:?Set absolute TLS private key file}
+        target: /etc/nexvary-turn/tls/privkey.pem
+        read_only: true
+        bind:
+          create_host_path: false
+    tmpfs:
+      - /run/nexvary-turn:uid=10002,gid=10002,mode=0700
+      - /tmp:uid=10002,gid=10002,mode=0700
+    networks:
+      turn:
+        ipv4_address: ${NEXVARY_TURN_CONTAINER_IP:?Choose isolated fixed container IPv4 after preflight}
+networks:
+  turn:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: ${NEXVARY_TURN_SUBNET:?Choose non-conflicting isolated container subnet after preflight}

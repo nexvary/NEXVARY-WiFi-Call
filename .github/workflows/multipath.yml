@@ -1,0 +1,90 @@
+name: Multi-path calling verification
+on:
+  push:
+    branches: [dev/foundation]
+    paths: ['server/**', 'scripts/pbx*', '.github/workflows/multipath.yml']
+  pull_request:
+    paths: ['server/**', 'scripts/pbx*', '.github/workflows/multipath.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  policy-and-preflight:
+    env:
+      PYTHONPATH: server
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python3 -m unittest discover -s server/preflight -p 'test_*.py' -v
+      - run: python3 -m unittest discover -s server/multipath -p 'test_*.py' -v
+      - name: Read-only inventory of disposable runner (not the user's server)
+        run: python3 server/preflight/inspect_host.py > runner-preflight.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NEXVARY-MultiPath-Verification
+          path: |
+            runner-preflight.json
+            server/deploy/pbx/
+            server/multipath/
+            server/preflight/
+            server/deploy/turn/
+  turn-tls-relay:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Install coturn on disposable runner only
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y coturn
+      - name: Real TLS allocation, permission and bidirectional UDP relay
+        run: bash server/deploy/turn/ci.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: NEXVARY-TURN-TLS-Synthetic-Evidence
+          path: turn-evidence/
+  real-sip-srtp-pilot:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install isolated-runner Asterisk and SRTP dependency
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y asterisk libsrtp2-dev
+          python3 -m pip install pylibsrtp==1.0.0
+      - name: Real synthetic two-client SIP TLS and two-way SRTP
+        run: bash scripts/pbx_ci.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: NEXVARY-SIP-SRTP-Synthetic-Evidence
+          path: pbx-evidence/
+  container-isolation:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Build and start isolated PBX on disposable runner
+        run: bash scripts/pbx_container_ci.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: NEXVARY-PBX-Container-Isolation
+          path: pbx-container-evidence/

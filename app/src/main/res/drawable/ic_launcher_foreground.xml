@@ -1,0 +1,9 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+    <!-- Adaptive foreground safe zone: scale preserves both Wi-Fi arcs and handset under masks. -->
+    <group android:pivotX="54" android:pivotY="54" android:scaleX="0.75" android:scaleY="0.75">
+        <path android:fillColor="#00D4FF" android:pathData="M28,34 Q54,10 80,34 L74,40 Q54,21 34,40 Z" />
+        <path android:fillColor="#00D4FF" android:pathData="M38,44 Q54,29 70,44 L64,50 Q54,40 44,50 Z" />
+        <path android:fillColor="#00D4FF" android:pathData="M49,56 Q54,51 59,56 L54,62 Z" />
+        <path android:fillColor="#00D4FF" android:pathData="M34,52 L43,61 L39,66 C43,72 49,78 56,81 L61,76 L71,85 C68,90 65,92 60,90 C43,85 28,70 26,57 C26,52 30,48 34,52 Z" />
+    </group>
+</vector>

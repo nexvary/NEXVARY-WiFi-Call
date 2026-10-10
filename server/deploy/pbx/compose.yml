@@ -1,0 +1,56 @@
+name: nexvary-sip-isolated
+services:
+  pbx:
+    build: .
+    image: nexvary-sip-pbx:asterisk20
+    restart: "no"
+    user: "10001:10001"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    init: true
+    pids_limit: 128
+    mem_limit: 384m
+    cpus: 0.75
+    ports:
+      # Only the explicitly selected host interface; no ARI or admin publication.
+      - "${NEXVARY_BIND_IP:-127.0.0.1}:5061:5061/tcp"
+      - "${NEXVARY_BIND_IP:-127.0.0.1}:20000-20100:20000-20100/udp"
+    volumes:
+      - type: bind
+        source: ${NEXVARY_PBX_CONFIG:?Set absolute path to freshly generated private config}
+        target: /nexvary-config
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${NEXVARY_TLS_CERT:?Set absolute fullchain certificate file path}
+        target: /etc/asterisk/tls/fullchain.pem
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${NEXVARY_TLS_KEY:?Set absolute private key file path}
+        target: /etc/asterisk/tls/privkey.pem
+        read_only: true
+        bind:
+          create_host_path: false
+      - pbx-db:/var/lib/nexvary-pbx
+      - pbx-cdr:/var/log/asterisk
+    tmpfs:
+      - /run/asterisk:uid=10001,gid=10001,mode=0700
+      - /var/spool/asterisk:uid=10001,gid=10001,mode=0700
+      - /tmp:uid=10001,gid=10001,mode=0700
+    networks: [voice]
+    healthcheck:
+      test: [CMD-SHELL, "asterisk -C /run/asterisk/asterisk.conf -rx 'pjsip show transports' | grep -q secure-tls"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+networks:
+  voice:
+    driver: bridge
+volumes:
+  pbx-db:
+  pbx-cdr:

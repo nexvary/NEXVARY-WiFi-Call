@@ -1,0 +1,128 @@
+name: Android CI
+on:
+  push:
+    branches: [ main, dev/foundation ]
+  pull_request:
+concurrency:
+  group: android-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    # Temporary x64 pool fallback for runner acquisition failures; retire before April 2027.
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+          cache-read-only: false
+      - run: python3 scripts/validate_resources.py
+      - run: gradle :core-model:test :app:testDebugUnitTest :app:lintDebug :app:assembleDebug :app:assembleDebugAndroidTest --stacktrace
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NEXVARY-WiFi-Call-debug
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: NEXVARY-WiFi-Call-check-reports
+          path: |
+            core-model/build/reports/tests
+            app/build/reports/tests
+            app/build/reports/lint-results-debug.html
+
+  ui-check:
+    needs: verify
+    # Preserve x86_64/KVM emulator checks on the alternate pool.
+    runs-on: ubuntu-22.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [pixel_2, Nexus 5]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+          cache-read-only: false
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: ${{ matrix.profile }}
+          disable-animations: true
+          script: bash scripts/run_ui_checks.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: NEXVARY-WiFi-Call-ui-verification-${{ matrix.profile }}
+          path: |
+            ui-screenshots
+            app/build/reports/androidTests
+            app/build/outputs/androidTest-results
+
+  android-sip-e2e:
+    needs: verify
+    # Match the verified Ubuntu 24/Asterisk 20 deployment generation. Record
+    # the exact installed version; this test does not claim Asterisk 18 support.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+          cache-read-only: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies on disposable hosted runner
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y asterisk libsrtp2-dev
+          python3 -m pip install pylibsrtp==1.0.0
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_2
+          disable-animations: true
+          script: |
+            gradle :app:installDebug :app:installDebugAndroidTest --stacktrace
+            bash scripts/pbx_android_ci.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: NEXVARY-Android-SIP-E2E
+          path: android-sip-evidence/
+          if-no-files-found: error

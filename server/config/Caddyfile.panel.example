@@ -1,0 +1,7 @@
+# Replace panel.example.com with your own DNS name, then merge this site block
+# into an existing reviewed proxy config. Never overwrite another site's config.
+panel.example.com {
+    reverse_proxy 127.0.0.1:8787 {
+        header_up Host 127.0.0.1:8787
+    }
+}

@@ -1,0 +1,5 @@
+/work/
+/work.archived.*/
+/preflight*.txt
+.env
+/panel/__pycache__/

@@ -1,0 +1,87 @@
+# Bounded initial ePDG exchange
+
+This independent diagnostic uses Python's standard library. It does not execute upstream gateway code, authenticate the SIM, establish IPsec, register IMS, open listening ports, or change services, routes, DNS or firewall rules. It requires no sudo. Full gateway execution remains blocked.
+
+## 1. Inspect the prepared upstream source
+
+```bash
+cd ~/nexvary-wifi-panel
+git pull --ff-only origin dev/foundation
+python3 server/engine/audit_gateway.py --source server/work/upstream
+```
+
+The audit is read-only. Exact revision, clean checkout and seven pinned source/license hashes must match. The JSON lists potential mutation sites and remaining blockers without printing command arguments or identities. A verified inventory intentionally returns exit code **2** because `executable` is false; code **1** means integrity was refused. The inventory is not a complete static security proof and never unlocks execution.
+
+## 2. Confirm current DNS, then test one address
+
+First print the plan (no network traffic):
+
+```bash
+python3 server/engine/epdg_probe.py
+```
+
+On the actual VPS, confirm current DNS for the carrier hostname:
+
+```bash
+timeout 10 getent ahosts epdg.epc.mnc002.mcc602.pub.3gppnetwork.org
+```
+
+The user previously observed `105.198.254.100` and `105.199.1.128`. Only use an address still returned by the current lookup. For example, if `105.198.254.100` is still present:
+
+```bash
+python3 server/engine/epdg_probe.py --probe \
+  --host epdg.epc.mnc002.mcc602.pub.3gppnetwork.org \
+  --address 105.198.254.100
+```
+
+The address is explicit so a blocking DNS resolver cannot extend the probe. This tool does not prove that the chosen IP belongs to the hostname; reviewing the DNS result is a separate step. It permits only public unicast numeric addresses and a canonical 3GPP ePDG hostname. It sends exactly one initial IKEv2 UDP/500 request with a fresh SPI, nonce and ephemeral group-14 key exchange. It waits for a bounded response, with no retries, COOKIE resend, IKE_AUTH or AKA request by default. Do not repeatedly loop it.
+
+## Interpreting the result
+
+A correlated response proves only that a syntactically valid IKE response was received for this request from the selected UDP endpoint. COOKIE, INVALID_KE_PAYLOAD and NO_PROPOSAL_CHOSEN are useful diagnostics; they are not SIM authentication failures. A matching proposal/key-exchange/nonce response is still unauthenticated. The responder's identity is not verified during IKE_SA_INIT. No result sets AKA, IPsec or IMS to verified, and this diagnostic does not change the panel's eight carrier stages.
+
+No reply is inconclusive: it may reflect network filtering, geolocation policy, rate limiting, the selected proposal, endpoint availability or transport conditions. It does not prove the carrier or project cannot work. A malformed/unrelated response must not count as a correlated response.
+
+The final live milestones still require a genuine authorized SIM authentication backend, real carrier/subscriber configuration, reviewed isolated gateway egress and independent IMS/calling/audio tests.
+
+Primary protocol references: [RFC 7296](https://www.rfc-editor.org/rfc/rfc7296.html), [RFC 3526 group 14](https://www.rfc-editor.org/rfc/rfc3526.html).
+
+## Optional bounded COOKIE follow-up (Windows or Ubuntu)
+
+Add `--follow-cookie` to explicitly allow one COOKIE follow-up. RFC 7296 section 2.6 requires the received COOKIE Notify to be the first payload while the original SPI, message ID, SA, KE and nonce remain unchanged. The same UDP socket and endpoint are used. At most two datagrams are sent within one total `--timeout` deadline (2–5 seconds); a second COOKIE, malformed response, timeout or different DH request never causes further traffic. COOKIE bytes are not exported. The default remains one packet; even `--follow-cookie` without `--probe` performs no network activity.
+
+```powershell
+py -u "$env:TEMP\nexvary-epdg-probe.py" --probe --follow-cookie --host epdg.epc.mnc002.mcc602.pub.3gppnetwork.org --address 105.198.254.100 --timeout 5
+```
+
+```bash
+python3 server/engine/epdg_probe.py --probe --follow-cookie \
+  --host epdg.epc.mnc002.mcc602.pub.3gppnetwork.org \
+  --address 105.198.254.100 --timeout 5
+```
+
+`initial_response_kind: cookie_requested` retains evidence of the first response if the follow-up times out. `cookie_followup_sent` and `packets_sent` describe actual sends. `offered_proposal_selected: true` means only that an unauthenticated matching SA/KE/nonce response was parsed; AKA, IPsec and IMS remain false. No IKE_AUTH is sent.
+
+Actual operator observation: a Windows probe received a correlated COOKIE response, while prior VPS probes received no response. This does not establish the cause of the difference or authenticate the endpoint.
+
+## Comparing UDP transport without changing firewall rules
+
+The default is still destination UDP/500 with an automatic local port. Explicit `--port 4500` prepends/validates the four-byte Non-ESP marker, outside the IKE length as required by RFC 7296 sections 2.23 and 3.1. ESP packets and NAT keepalives cannot be accepted as IKE responses. No automatic port fallback or additional retries occur.
+
+On the VPS, first try UDP/4500 with an automatic local port (no sudo):
+
+```bash
+python3 server/engine/epdg_probe.py --probe --follow-cookie \
+  --host epdg.epc.mnc002.mcc602.pub.3gppnetwork.org \
+  --address 105.198.254.100 --port 4500 --timeout 5
+```
+
+A separate source-port comparison may use `--port 500 --source-port 500`, or matching 4500 ports. On Ubuntu binding 500 may require sudo. The socket is exclusively bound for at most the short probe, no reuse options are enabled, and the socket closes on every exit. An occupied or denied port yields `local_port_unavailable` with zero packets; it is never taken over and no service is stopped. Windows uses SO_EXCLUSIVEADDRUSE when available. This is a temporary connected client socket, not an installed listener/service.
+
+```bash
+sudo python3 server/engine/epdg_probe.py --probe --follow-cookie \
+  --host epdg.epc.mnc002.mcc602.pub.3gppnetwork.org \
+  --address 105.198.254.100 --port 500 --source-port 500 --timeout 5
+```
+
+Results include `destination_port` and `source_port_requested` (0 means automatic). No-response comparisons remain inconclusive; don't infer carrier geoblocking or open firewall ports solely from these results. Nothing changes system routes, DNS, firewall rules or existing service configuration.
