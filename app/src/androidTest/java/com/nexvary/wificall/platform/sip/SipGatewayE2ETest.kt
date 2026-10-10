@@ -168,6 +168,19 @@ class SipGatewayE2ETest {
             phase = "incoming"
             await(timeout) { sip.state.value.call == SipCallPhase.INCOMING }
             result.put("incoming_ringing", true)
+            phase = "incoming_stale_previous_call_actions"
+            // Previously issued actions belong to the completed outgoing call.
+            // An old End capability must not terminate the new incoming call.
+            actions[1].actionIntent.send()
+            actions[0].actionIntent.send()
+            instrumentation.waitForIdleSync()
+            Thread.sleep(500)
+            main {
+                check(sip.state.value.call == SipCallPhase.INCOMING && !sip.state.value.muted) {
+                    "PREVIOUS_CALL_ACTIONS_MUST_NOT_CONTROL_NEW_CALL"
+                }
+            }
+            result.put("previous_call_notification_actions_rejected", true)
             main { sip.answer() }
             phase = "incoming_media_negotiation"
             await(timeout) { sip.state.value.call == SipCallPhase.MEDIA_ACTIVE && sip.state.value.srtpActive }

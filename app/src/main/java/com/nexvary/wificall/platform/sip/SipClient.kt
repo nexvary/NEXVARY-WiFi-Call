@@ -99,12 +99,12 @@ class SipClient private constructor(context: Context) {
                 policy.isTcpTurnTransportEnabled = false
                 policy.isTlsTurnTransportEnabled = true
                 policy.isTurnEnabled = true
-                engine.addAuthInfo(factory.createAuthInfo(turn.username, null, turn.password, null, null, null))
                 turnExpirySeconds = turn.expiresAtSeconds
             } else if (stun.isNotEmpty()) { policy.stunServer = stun; policy.isStunEnabled = true }
             engine.natPolicy = policy
             engine.addListener(listener)
             engine.start()
+            if (turn != null) engine.addAuthInfo(factory.createAuthInfo(turn.username, null, turn.password, null, null, null))
             val identity = factory.createAddress("sip:$username@$host") ?: error("INVALID_IDENTITY")
             val server = factory.createAddress("sip:$host:$port;transport=tls") ?: error("INVALID_PROXY")
             server.setTransport(TransportType.Tls)
