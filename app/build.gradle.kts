@@ -14,8 +14,8 @@ android {
         applicationId = "com.nexvary.wificall"
         minSdk = 26
         targetSdk = 35
-        versionCode = 7
-        versionName = "0.6.0-alpha01"
+        versionCode = 8
+        versionName = "0.7.0-alpha01"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     buildFeatures { compose = true; buildConfig = true }

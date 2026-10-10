@@ -6,15 +6,18 @@ SIP credentials/SDES keys never appear in output. Reuses the verified TLS and
 digest framing from the independent two-client PBX integration test.
 """
 import argparse
+import base64
 import json
 import os
 import re
 import socket
 import subprocess
+import struct
 import time
 import uuid
 from pathlib import Path
 from pbx_integration import Client
+import pylibsrtp
 
 
 class EmulatorPeer(Client):
@@ -26,6 +29,7 @@ class EmulatorPeer(Client):
         self.reader_finished = False
         self.media_dialogs = 1
         self.decrypted_packets = {"outgoing": None, "incoming": None}
+        self.dtmf_events = []
         super().__init__(*args, **kwargs)
 
     def fresh_media_dialog(self):
@@ -71,11 +75,47 @@ class EmulatorPeer(Client):
             return predicate(message)
         return super().next(observe, timeout)
 
+    def sdp(self):
+        return super().sdp().replace('RTP/SAVP 0\r\n', 'RTP/SAVP 0 101\r\n').replace(
+            'a=rtpmap:0 PCMU/8000\r\n',
+            'a=rtpmap:0 PCMU/8000\r\na=rtpmap:101 telephone-event/8000\r\na=fmtp:101 0-16\r\n')
+
     def media(self, remote_sdp, result):
         # Android reaches its host at this alias; the host-side fixture uses
         # loopback. This is deliberately not evidence of deployed NAT traversal.
         remote_sdp = remote_sdp.replace("c=IN IP4 10.0.2.2", "c=IN IP4 127.0.0.1")
-        return super().media(remote_sdp, result)
+        host = re.search(r"(?m)^c=IN IP4 (\S+)", remote_sdp).group(1)
+        port = int(re.search(r"(?m)^m=audio (\d+)", remote_sdp).group(1))
+        remote_key = base64.b64decode(re.search(r"inline:([A-Za-z0-9+/=]+)", remote_sdp).group(1))
+        outbound = pylibsrtp.Session(pylibsrtp.Policy(key=self.key, ssrc_type=pylibsrtp.Policy.SSRC_ANY_OUTBOUND))
+        inbound = pylibsrtp.Session(pylibsrtp.Policy(key=remote_key, ssrc_type=pylibsrtp.Policy.SSRC_ANY_INBOUND))
+        ssrc = int.from_bytes(os.urandom(4), "big")
+        count = 0
+        seen_events = set()
+        sequence = 0
+        deadline = time.monotonic()+5
+        while time.monotonic() < deadline:
+            packet = struct.pack("!BBHII", 0x80, 0, sequence, sequence*160, ssrc)+b"\xff"*160
+            self.rtp.sendto(outbound.protect(packet), (host, port))
+            sequence += 1
+            try:
+                data, _ = self.rtp.recvfrom(2048)
+                # Authenticate every packet before parsing its RTP payload.
+                # Any SRTP authentication/replay error fails this fixture.
+                decoded = inbound.unprotect(data)
+                payload_type, payload, event_identity = rtp_payload(decoded)
+                if payload_type == 0 and len(payload) >= 160:
+                    count += 1
+                elif payload_type == 101 and len(payload) >= 4:
+                    event, flags, duration = struct.unpack('!BBH', payload[:4])
+                    identity = event_identity+(event,)
+                    if flags & 0x80 and duration > 0 and identity not in seen_events:
+                        seen_events.add(identity)
+                        self.dtmf_events.append(event)
+            except socket.timeout:
+                pass
+            time.sleep(.02)
+        result.append(count)
 
     def okay(self, request):
         _, headers, _ = request
@@ -96,6 +136,8 @@ def incoming_from_android(peer):
     if not received or received[0] < 10:
         raise RuntimeError("Android outgoing encrypted media was not received")
     peer.decrypted_packets["outgoing"] = received[0]
+    if peer.dtmf_events != [5, 10]:
+        raise RuntimeError("Encrypted RFC4733 completed DTMF sequence was not verified")
     peer.dialog_step = "await_outgoing_bye"
     peer.okay(peer.next(lambda m: m[0].startswith("BYE "), timeout=30))
     return received[0]
@@ -153,6 +195,27 @@ def wait_android_ready():
     raise TimeoutError("Android did not finish releasing its outgoing dialog")
 
 
+def rtp_payload(packet):
+    """Bounded authenticated RTP parsing, including CSRC/extension/padding."""
+    if len(packet) < 12 or packet[0] >> 6 != 2:
+        raise ValueError("Invalid authenticated RTP header")
+    offset = 12+4*(packet[0] & 0x0f)
+    if packet[0] & 0x10:
+        if len(packet) < offset+4:
+            raise ValueError("Invalid authenticated RTP extension")
+        extension_words = struct.unpack('!H', packet[offset+2:offset+4])[0]
+        offset += 4+4*extension_words
+    end = len(packet)
+    if packet[0] & 0x20:
+        padding = packet[-1]
+        if padding == 0 or padding > end-offset:
+            raise ValueError("Invalid authenticated RTP padding")
+        end -= padding
+    if offset > end:
+        raise ValueError("Invalid authenticated RTP payload offset")
+    return packet[1] & 0x7f, packet[offset:end], struct.unpack('!II', packet[4:12])
+
+
 def run(args):
     accounts = json.loads(Path(args.accounts).read_text())["accounts"]
     peer = EmulatorPeer("1002", accounts["1002"], "127.0.0.1", 5061, args.ca)
@@ -175,6 +238,8 @@ def run(args):
             "tls_peer_certificate_verified": True, "digest_registration": True,
             "outgoing_answer_and_hangup": True, "incoming_answer_and_hangup": True,
             "fresh_rtp_socket_per_dialog": peer.media_dialogs == 2,
+            "rfc4733_dtmf_sequence_verified": peer.dtmf_events == [5, 10],
+            "expected_synthetic_dtmf_sequence": ["5", "*"],
             "decrypted_srtp_from_android_packets": {"outgoing": outgoing_packets, "incoming": incoming},
         }, indent=2)+"\n")
     except Exception as error:
@@ -184,6 +249,8 @@ def run(args):
             "dialog_step": peer.dialog_step,
             "outgoing_answer_and_hangup": outgoing_packets is not None and outgoing_packets >= 10,
             "fresh_rtp_socket_per_dialog": peer.media_dialogs == 2,
+            "rfc4733_dtmf_sequence_verified": peer.dtmf_events == [5, 10],
+            "completed_dtmf_event_count": len(peer.dtmf_events),
             "incoming_answer_and_hangup": False,
             "decrypted_srtp_from_android_packets": peer.decrypted_packets,
             "sip_request_method_counts": peer.request_method_counts,

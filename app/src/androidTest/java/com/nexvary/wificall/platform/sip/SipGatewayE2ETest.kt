@@ -1,7 +1,10 @@
 package com.nexvary.wificall.platform.sip
 
 import android.Manifest
+import android.app.Notification
+import android.app.NotificationManager
 import android.graphics.Bitmap
+import android.os.Build
 import android.os.ParcelFileDescriptor
 import android.os.SystemClock
 import androidx.compose.ui.test.onNodeWithTag
@@ -20,6 +23,8 @@ import org.linphone.core.Core
 import org.linphone.core.Call
 import org.linphone.core.CoreListenerStub
 import org.linphone.core.MediaEncryption
+import org.linphone.core.Account
+import org.linphone.core.RegistrationState
 import java.io.File
 import java.security.cert.CertificateFactory
 
@@ -42,7 +47,11 @@ class SipGatewayE2ETest {
         var client: SipClient? = null
         var engine: Core? = null
         val callEvents = org.json.JSONArray()
+        val registrationEvents = org.json.JSONArray()
         val diagnosticListener = object : CoreListenerStub() {
+            override fun onAccountRegistrationStateChanged(core: Core, account: Account, state: RegistrationState, message: String) {
+                if (registrationEvents.length() < 50) registrationEvents.put(state.name)
+            }
             override fun onCallStateChanged(core: Core, call: Call, state: Call.State, message: String) {
                 // All fields are enums or numeric measurements. Never record message,
                 // remote address, SDP, credentials, or ErrorInfo.phrase.
@@ -70,6 +79,7 @@ class SipGatewayE2ETest {
             CertificateFactory.getInstance("X.509").generateCertificate(rootCa.byteInputStream())
             val timeout = fixture.optInt("deadline_seconds", 90).coerceIn(30, 120) * 1000L
             instrumentation.uiAutomation.grantRuntimePermission(context.packageName, Manifest.permission.RECORD_AUDIO)
+            if (Build.VERSION.SDK_INT >= 33) instrumentation.uiAutomation.grantRuntimePermission(context.packageName, Manifest.permission.POST_NOTIFICATIONS)
             compose.onNodeWithTag("nav-settings").performClick()
             compose.onNodeWithText(context.getString(R.string.call_center)).performScrollTo().performClick()
             compose.waitForIdle()
@@ -96,15 +106,62 @@ class SipGatewayE2ETest {
             main { sip.dial(peer) }
             phase = "outgoing_media_negotiation"
             await(timeout) { sip.state.value.call == SipCallPhase.MEDIA_ACTIVE && sip.state.value.srtpActive }
+            phase = "outgoing_dtmf"
+            var invalidDtmfRejected = false
+            main {
+                try { sip.sendDtmf('A') }
+                catch (_: IllegalArgumentException) { invalidDtmfRejected = true }
+            }
+            check(invalidDtmfRejected) { "INVALID_DTMF_MUST_BE_REJECTED" }
+            result.put("invalid_dtmf_rejected", true)
+            main { sip.sendDtmf('5') }
+            Thread.sleep(500)
+            main { sip.sendDtmf('*') }
+            result.put("dtmf_requested", org.json.JSONArray().put(5).put(10))
+            // The independent host peer must decrypt RFC4733 packets and verify
+            // completed event IDs 5,10; local acceptance alone is not receipt proof.
+            result.put("dtmf_receive_verification", "independent_peer_evidence_required")
             phase = "outgoing_audio_statistics"
             val outgoing = mediaEvidence(checkNotNull(engine), timeout)
             result.put("outgoing", outgoing)
             phase = "outgoing_screenshot"
             compose.onNodeWithTag("sip-active-call").performScrollTo()
             screenshot("outgoing")
-            main { sip.hangUp() }
+
+            phase = "outgoing_notification_controls"
+            val notifications = context.getSystemService(NotificationManager::class.java)
+            await(10000) { notifications.activeNotifications.any { it.id == 17 } }
+            val notification = notifications.activeNotifications.single { it.id == 17 }.notification
+            check(notification.visibility == Notification.VISIBILITY_PRIVATE) { "CALL_NOTIFICATION_PRIVACY_REQUIRED" }
+            check((notification.flags and Notification.FLAG_ONGOING_EVENT) != 0) { "ONGOING_CALL_NOTIFICATION_REQUIRED" }
+            val actions = checkNotNull(notification.actions)
+            check(actions.size == 2) { "CALL_NOTIFICATION_ACTIONS_REQUIRED" }
+            // The dedicated E2E profile runs API35. Do not claim immutable intent
+            // verification on older APIs where this public inspection API is absent.
+            check(Build.VERSION.SDK_INT >= 31) { "NOTIFICATION_PROOF_REQUIRES_API31" }
+            check(actions.all { it.actionIntent.isImmutable } && notification.contentIntent.isImmutable) { "IMMUTABLE_CALL_ACTIONS_REQUIRED" }
+            val visibleText = listOf(Notification.EXTRA_TITLE, Notification.EXTRA_TEXT)
+                .joinToString(" ") { notification.extras.getCharSequence(it)?.toString().orEmpty() }
+            check(listOf(username, peer, host, password).none { visibleText.contains(it) }) { "CALL_NOTIFICATION_MUST_NOT_EXPOSE_ACCOUNT_DATA" }
+            actions[0].actionIntent.send()
+            await(5000) { sip.state.value.muted }
+            actions[0].actionIntent.send()
+            await(5000) { !sip.state.value.muted }
+            result.put("foreground_notification", JSONObject().put("private_visibility", true)
+                .put("immutable_pending_intents", true).put("account_data_redacted", true)
+                .put("mute_unmute_actions_verified", true))
+            actions[1].actionIntent.send()
             await(20000) { sip.state.value.call == SipCallPhase.IDLE && engine?.currentCall == null }
             result.put("outgoing_hangup", true)
+            result.put("notification_end_action", true)
+            await(5000) { notifications.activeNotifications.none { it.id == 17 } }
+            // Reuse an issued capability after hangup, before the peer may ring.
+            // It must neither mute an idle client nor create another call/service.
+            actions[0].actionIntent.send()
+            instrumentation.waitForIdleSync()
+            Thread.sleep(500)
+            main { check(!sip.state.value.muted && sip.state.value.call == SipCallPhase.IDLE) { "STALE_NOTIFICATION_ACTION_MUST_BE_REJECTED" } }
+            result.put("stale_notification_action_rejected", true)
             export("stage.json", JSONObject().put("ready_for_incoming", true).toString().toByteArray())
 
             // The authenticated fixture peer originates a separate inbound call after BYE.
@@ -122,6 +179,23 @@ class SipGatewayE2ETest {
             main { sip.hangUp() }
             await(20000) { sip.state.value.call == SipCallPhase.IDLE }
             result.put("incoming_hangup", true)
+
+            phase = "gateway_stop_handoff"
+            export("stage.json", JSONObject().put("ready_for_gateway_restart", true).toString().toByteArray())
+            await(timeout) { restartControl("gateway_stopped") }
+            phase = "gateway_registration_loss"
+            // Actual TLS connection refusal/loss from stopping the disposable PBX.
+            // Never simulate network loss with setNetworkReachable or fake state.
+            main { sip.refreshRegistration() }
+            await(timeout) { sip.state.value.registration == SipRegistration.FAILED }
+            result.put("gateway_loss_observed", true)
+            export("stage.json", JSONObject().put("gateway_loss_observed", true).toString().toByteArray())
+            phase = "gateway_restart_handoff"
+            await(timeout) { restartControl("gateway_restarted") }
+            phase = "gateway_reregistration"
+            main { sip.refreshRegistration() }
+            await(timeout) { sip.state.value.registration == SipRegistration.REGISTERED }
+            result.put("gateway_reregistration", true)
             result.put("passed", true)
             result.put("success", true)
         } catch (failure: Throwable) {
@@ -135,6 +209,7 @@ class SipGatewayE2ETest {
             result.put("completed_phase", phase)
             main {
                 result.put("call_events", callEvents)
+                result.put("registration_events", registrationEvents)
                 result.put("last_registration", client?.state?.value?.registration?.name ?: "not_started")
                 result.put("last_call_phase", client?.state?.value?.call?.name ?: "not_started")
                 result.put("last_srtp_active", client?.state?.value?.srtpActive ?: false)
@@ -143,6 +218,7 @@ class SipGatewayE2ETest {
             export("result.json", result.toString(2).toByteArray())
             main { client?.disconnect() }
             File(context.filesDir, "nexvary-sip-e2e.json").delete()
+            File(context.filesDir, "nexvary-sip-e2e-restart.json").delete()
         }
         assertTrue("ANDROID_SIP_E2E_FAILED", result.getBoolean("passed"))
     }
@@ -168,6 +244,16 @@ class SipGatewayE2ETest {
     }
 
     private fun main(block: () -> Unit) = instrumentation.runOnMainSync(block)
+
+    private fun restartControl(key: String): Boolean {
+        check(key in setOf("gateway_stopped", "gateway_restarted"))
+        val control = File(context.filesDir, "nexvary-sip-e2e-restart.json")
+        if (!control.isFile || control.length() !in 1..4096) return false
+        // Host writes a tiny private fixture marker. A partial write is retried;
+        // it must never be interpreted as a successful stop or restart.
+        return try { JSONObject(control.readText()).optBoolean(key, false) }
+        catch (_: org.json.JSONException) { false }
+    }
 
     private fun await(timeout: Long, condition: () -> Boolean) {
         val deadline = SystemClock.elapsedRealtime() + timeout

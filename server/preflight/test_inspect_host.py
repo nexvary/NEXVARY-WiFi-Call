@@ -19,6 +19,13 @@ class InventoryTests(unittest.TestCase):
         for argv in CHECKS.values():
             self.assertNotIn('sudo', argv)
             self.assertFalse(any(x in argv for x in ('stop','restart','install','flush','--env','inspect')))
+    def test_optional_turn_conflicts_are_reviewed_separately(self):
+        p = deploy_plan({'listeners': {'status':'ok','output':
+            'tcp LISTEN 0 0 [::]:5349 [::]:*\nudp UNCONN 0 0 *:24000 *:*\nudp UNCONN 0 0 *:24031 *:*\nudp UNCONN 0 0 *:24032 *:*'}})
+        self.assertEqual(p['candidate_conflicting_ports'], [5349])
+        self.assertEqual(p['candidate_turn_relay_conflicts'], [24000,24031])
+        self.assertIn('candidate_port_conflict', p['blockers'])
+        self.assertFalse(p['automatic_deployment_allowed'])
     @patch('inspect_host.shutil.which', return_value=None)
     def test_missing_not_success(self, _):
         self.assertEqual(run(['ss'])['status'], 'missing_tool')

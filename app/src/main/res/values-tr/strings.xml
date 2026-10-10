@@ -224,4 +224,14 @@
     <string name="sip_phase_ringing">Çalıyor</string>
     <string name="sip_phase_connected">Bağlandı</string>
     <string name="sip_phase_media">Ses oturumu etkin</string>
+    <string name="sip_turn_enable">TLS üzerinden isteğe bağlı TURN</string>
+    <string name="sip_turn_description">Sunucunuzun kısa ömürlü kimlik bilgilerini kullanın. Kullanıcı biçimi: expiry:user. En fazla bir saat; sırlar bellekte tutulur ve kurulumdan sonra silinir. Aktarma henüz test edilmedi.</string>
+    <string name="sip_turn_endpoint">TURN TLS adresi</string>
+    <string name="sip_turn_username">Geçici TURN kullanıcısı · expiry:user</string>
+    <string name="sip_turn_password">Geçici TURN şifresi · yalnızca bellekte</string>
+    <string name="sip_turn_unverified">TURN TLS ayarlandı. Aktarma tahsisi ve gerçek ağ geçişi doğrulanmadı.</string>
+    <string name="sip_dtmf_keypad">Arama içi tuş takımı (DTMF)</string>
+    <string name="sip_dtmf_error">Ton gönderilemedi. Etkin güvenli medya oturumu gerekir.</string>
+    <string name="sip_refresh_registration">Mevcut kaydı yenile</string>
+    <string name="sip_turn_invalid">TURN adresi veya geçici bilgiler geçersiz ya da süresi doldu. Sunucudan yeni bilgiler alın.</string>
 </resources>

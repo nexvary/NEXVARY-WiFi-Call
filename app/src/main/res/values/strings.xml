@@ -224,4 +224,14 @@
     <string name="sip_phase_ringing">Ringing</string>
     <string name="sip_phase_connected">Connected</string>
     <string name="sip_phase_media">Audio session active</string>
+    <string name="sip_turn_enable">Optional TURN over TLS</string>
+    <string name="sip_turn_description">Use short-lived credentials issued by your server. Username format: expiry:user. Maximum validity is one hour; secrets remain in memory and are cleared after setup. No relay test has run yet.</string>
+    <string name="sip_turn_endpoint">TURN TLS endpoint</string>
+    <string name="sip_turn_username">Temporary TURN username · expiry:user</string>
+    <string name="sip_turn_password">Temporary TURN password · memory only</string>
+    <string name="sip_turn_unverified">TURN TLS configured. Relay allocation and real network traversal remain unverified.</string>
+    <string name="sip_dtmf_keypad">In-call keypad (DTMF)</string>
+    <string name="sip_dtmf_error">Tone could not be sent. An active secure media session is required.</string>
+    <string name="sip_refresh_registration">Refresh existing registration</string>
+    <string name="sip_turn_invalid">TURN endpoint or temporary credentials are invalid or expired. Get new credentials from your server.</string>
 </resources>

@@ -67,9 +67,10 @@ def deploy_plan(checks):
     # end-to-end reachability or authorizes opening a port.
     if checks.get('ufw', {}).get('status') != 'ok' and checks.get('firewall_rules', {}).get('status') != 'ok':
         blockers.append('firewall_review_required')
-    conflicts = sorted(set(ports) & {5060, 5061, 8088, 8089, 8787})
+    conflicts = sorted(set(ports) & {5060, 5061, 5349, 8088, 8089, 8787})
     rtp_conflicts = [p for p in ports if 20000 <= p <= 20100]
-    if conflicts or rtp_conflicts:
+    turn_conflicts = [p for p in ports if 24000 <= p <= 24031]
+    if conflicts or rtp_conflicts or turn_conflicts:
         blockers.append('candidate_port_conflict')
     mem = checks.get('memory', {}).get('output', '')
     m = re.search(r'^Mem:\s+(\d+)\s+\d+\s+\d+\s+\d+\s+\d+\s+(\d+)', mem, re.M)
@@ -93,6 +94,8 @@ def deploy_plan(checks):
         'state': 'needs_review', 'automatic_deployment_allowed': False,
         'blockers': sorted(set(blockers)), 'candidate_conflicting_ports': conflicts,
         'candidate_rtp_conflicts': rtp_conflicts,
+        'candidate_turn_relay_conflicts': turn_conflicts,
+        'optional_turn': 'TLS 5349 and UDP 24000-24031 require separate resource, peer allowlist, NAT and firewall review; never enabled automatically',
         'protected_service_inventory': protected,
         'voice_gateway_location': 'physical_host_with_cellular_coverage',
         'recommended_split': 'existing_control_server_and_separate_voice_gateway',

@@ -39,15 +39,25 @@ fun CallCenterScreen(client: SipClient, dashboard: DashboardState) {
     var password by remember { mutableStateOf("") }
     var target by rememberSaveable { mutableStateOf("1002") }
     var stun by rememberSaveable { mutableStateOf("") }
+    var turnEnabled by rememberSaveable { mutableStateOf(false) }
+    var turnEndpoint by rememberSaveable { mutableStateOf("turns:relay.example.org:5349?transport=tcp") }
+    var turnUsername by remember { mutableStateOf("") }
+    var turnPassword by remember { mutableStateOf("") }
+    var dtmfExpanded by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     fun register() {
-        try { client.register(host.trim(), port.toIntOrNull() ?: 0, user.trim(), password, stun.trim()); error = null }
+        try {
+            val turn = if (turnEnabled) SecureTurnSettings.parse(turnEndpoint.trim(), turnUsername.trim(), turnPassword,
+                System.currentTimeMillis() / 1000) else null
+            client.register(host.trim(), port.toIntOrNull() ?: 0, user.trim(), password, stun.trim(), turn)
+            error = null
+        }
         catch (_: Exception) { error = context.getString(R.string.sip_setup_error) }
-        finally { password = "" }
+        finally { password = ""; turnUsername = ""; turnPassword = "" }
     }
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { results ->
         if (results[Manifest.permission.RECORD_AUDIO] == true) register()
-        else { password = ""; error = context.getString(R.string.sip_permission_required) }
+        else { password = ""; turnUsername = ""; turnPassword = ""; error = context.getString(R.string.sip_permission_required) }
     }
     val contacts = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
@@ -62,8 +72,12 @@ fun CallCenterScreen(client: SipClient, dashboard: DashboardState) {
         }
     }
     val busy = state.call !in setOf(SipCallPhase.IDLE, SipCallPhase.FAILED)
-    LaunchedEffect(state.call) { if (state.call == SipCallPhase.INCOMING) selected = CallingRoute.SIP_INTERNAL }
+    LaunchedEffect(state.call) {
+        if (state.call == SipCallPhase.INCOMING) selected = CallingRoute.SIP_INTERNAL
+        if (state.call != SipCallPhase.MEDIA_ACTIVE) dtmfExpanded = false
+    }
     Text(stringResource(R.string.call_center_description), style = MaterialTheme.typography.bodyMedium)
+    (error ?: state.error?.let { context.getString(R.string.sip_call_error) })?.let { Text(it, color = ErrorColor) }
     if (busy) {
         Card(Modifier.fillMaxWidth().testTag("sip-active-call")) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -73,6 +87,23 @@ fun CallCenterScreen(client: SipClient, dashboard: DashboardState) {
                 OutlinedButton(onClick = { client.toggleMute() }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(if (state.muted) R.string.sip_unmute else R.string.sip_mute)) }
                 OutlinedButton(onClick = { try { client.toggleSpeaker() } catch (_: Exception) { error = context.getString(R.string.sip_call_error) } }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(if (state.speaker) R.string.sip_earpiece else R.string.sip_speaker)) }
                 Text(stringResource(if (state.srtpActive) R.string.sip_srtp_negotiated else R.string.sip_media_unverified), color = if (state.srtpActive) ReadyColor else WarningColor)
+                if (state.call == SipCallPhase.MEDIA_ACTIVE && state.srtpActive) {
+                    OutlinedButton(onClick = { dtmfExpanded = !dtmfExpanded }, modifier = Modifier.fillMaxWidth().testTag("sip-dtmf-keypad")) {
+                        Icon(Icons.Default.Dialpad, null); Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.sip_dtmf_keypad))
+                    }
+                    if (dtmfExpanded) CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                        listOf("123", "456", "789", "*0#").forEach { row ->
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                row.forEach { digit ->
+                                    OutlinedButton(onClick = {
+                                        try { client.sendDtmf(digit); error = null }
+                                        catch (_: Exception) { error = context.getString(R.string.sip_dtmf_error) }
+                                    }, modifier = Modifier.weight(1f).heightIn(min = 48.dp).testTag("sip-dtmf-$digit")) { Text(digit.toString()) }
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -110,15 +141,37 @@ fun CallCenterScreen(client: SipClient, dashboard: DashboardState) {
             OutlinedTextField(port, { port = it.filter(Char::isDigit).take(5) }, enabled = !busy, label = { Text(stringResource(R.string.sip_tls_port)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
             OutlinedTextField(user, { user = it.filter(Char::isDigit).take(6) }, enabled = !busy, label = { Text(stringResource(R.string.sip_extension)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
             OutlinedTextField(password, { password = it }, enabled = !busy, label = { Text(stringResource(R.string.sip_password)) }, visualTransformation = PasswordVisualTransformation(), singleLine = true, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(stun, { stun = it }, enabled = !busy, label = { Text(stringResource(R.string.sip_stun_optional)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(stun, { stun = it }, enabled = !busy && !turnEnabled, label = { Text(stringResource(R.string.sip_stun_optional)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text(stringResource(R.string.sip_turn_enable), modifier = Modifier.weight(1f))
+                Switch(checked = turnEnabled, enabled = !busy, onCheckedChange = {
+                    turnEnabled = it
+                    if (!it) { turnUsername = ""; turnPassword = "" }
+                }, modifier = Modifier.testTag("sip-turn-enable"))
+            }
+            if (turnEnabled) {
+                Text(stringResource(R.string.sip_turn_description), style = MaterialTheme.typography.bodySmall, color = WarningColor)
+                OutlinedTextField(turnEndpoint, { turnEndpoint = it }, enabled = !busy, label = { Text(stringResource(R.string.sip_turn_endpoint)) }, singleLine = true, modifier = Modifier.fillMaxWidth().testTag("sip-turn-endpoint"))
+                OutlinedTextField(turnUsername, { turnUsername = it }, enabled = !busy, label = { Text(stringResource(R.string.sip_turn_username)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(turnPassword, { turnPassword = it }, enabled = !busy, label = { Text(stringResource(R.string.sip_turn_password)) }, visualTransformation = PasswordVisualTransformation(), singleLine = true, modifier = Modifier.fillMaxWidth())
+            }
+            if (state.turnTlsConfigured) Text(stringResource(R.string.sip_turn_unverified), style = MaterialTheme.typography.bodySmall, color = WarningColor)
             Text(stringResource(when (state.registration) { SipRegistration.REGISTERED -> R.string.sip_registered; SipRegistration.CONNECTING -> R.string.sip_connecting; SipRegistration.FAILED -> R.string.sip_failed; else -> R.string.sip_offline }), modifier = Modifier.testTag("sip-registration"))
-            Button(enabled = !busy && state.registration != SipRegistration.CONNECTING && InternalDialPolicy.validHost(host.trim()) && InternalDialPolicy.validExtension(user) && password.length >= 8,
+            val turnValid = !turnEnabled || runCatching {
+                SecureTurnSettings.parse(turnEndpoint.trim(), turnUsername.trim(), turnPassword, System.currentTimeMillis() / 1000)
+            }.isSuccess
+            if (turnEnabled && turnUsername.isNotEmpty() && turnPassword.isNotEmpty() && !turnValid) Text(stringResource(R.string.sip_turn_invalid), color = ErrorColor)
+            Button(enabled = !busy && turnValid && state.registration != SipRegistration.CONNECTING && InternalDialPolicy.validHost(host.trim()) && InternalDialPolicy.validExtension(user) && password.length in 8..128,
                 onClick = {
                     val permissions = mutableListOf(Manifest.permission.RECORD_AUDIO)
                     if (Build.VERSION.SDK_INT >= 33) permissions += Manifest.permission.POST_NOTIFICATIONS
                     if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) register()
                     else permission.launch(permissions.toTypedArray())
                 }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.sip_connect)) }
+            if (state.accountConfigured) OutlinedButton(enabled = !busy, onClick = {
+                try { client.refreshRegistration(); error = null }
+                catch (_: Exception) { error = context.getString(R.string.sip_call_error) }
+            }, modifier = Modifier.fillMaxWidth().testTag("sip-refresh-registration")) { Text(stringResource(R.string.sip_refresh_registration)) }
             if (state.registration != SipRegistration.OFFLINE) OutlinedButton(onClick = { client.disconnect() }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.sip_disconnect)) }
         }
     }
@@ -150,7 +203,6 @@ fun CallCenterScreen(client: SipClient, dashboard: DashboardState) {
             }
             Button(onClick = { try { client.dial(target); error = null } catch (_: Exception) { error = context.getString(R.string.sip_call_error) } },
                 enabled = state.registration == SipRegistration.REGISTERED && !busy && InternalDialPolicy.validExtension(target), modifier = Modifier.fillMaxWidth().testTag("sip-call")) { Icon(Icons.Default.Call, null); Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.sip_call)) }
-            (error ?: state.error?.let { context.getString(R.string.sip_call_error) })?.let { Text(it, color = ErrorColor) }
         }
     }
     Text(stringResource(R.string.sip_history), style = MaterialTheme.typography.titleMedium)

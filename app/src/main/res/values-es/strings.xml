@@ -224,4 +224,14 @@
     <string name="sip_phase_ringing">Sonando</string>
     <string name="sip_phase_connected">Conectado</string>
     <string name="sip_phase_media">Sesión de audio activa</string>
+    <string name="sip_turn_enable">TURN opcional sobre TLS</string>
+    <string name="sip_turn_description">Use credenciales temporales de su servidor. Usuario: expiry:user. Máximo una hora; secretos solo en memoria y borrados tras configurar. Relé aún sin probar.</string>
+    <string name="sip_turn_endpoint">Dirección TURN TLS</string>
+    <string name="sip_turn_username">Usuario TURN temporal · expiry:user</string>
+    <string name="sip_turn_password">Contraseña TURN temporal · solo en memoria</string>
+    <string name="sip_turn_unverified">TURN TLS configurado. Asignación de relé y recorrido real de red sin verificar.</string>
+    <string name="sip_dtmf_keypad">Teclado durante llamada (DTMF)</string>
+    <string name="sip_dtmf_error">No se pudo enviar el tono. Se requiere sesión de medios segura activa.</string>
+    <string name="sip_refresh_registration">Actualizar registro existente</string>
+    <string name="sip_turn_invalid">Dirección TURN o credenciales temporales inválidas o caducadas. Solicite nuevas credenciales al servidor.</string>
 </resources>

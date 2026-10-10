@@ -6,6 +6,8 @@ import android.content.pm.PackageManager
 import androidx.core.content.ContextCompat
 import com.nexvary.wificall.BuildConfig
 import com.nexvary.wificall.core.InternalDialPolicy
+import com.nexvary.wificall.core.SecureTurnSettings
+import com.nexvary.wificall.core.DtmfPolicy
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import org.linphone.core.*
@@ -21,6 +23,7 @@ class SipClient private constructor(context: Context) {
     private val context = context.applicationContext
     private var core: Core? = null
     private var domain = ""
+    private var turnExpirySeconds: Long? = null
     private val mutable = MutableStateFlow(SipUiState())
     val state = mutable.asStateFlow()
     private val listener = object : CoreListenerStub() {
@@ -52,10 +55,11 @@ class SipClient private constructor(context: Context) {
                 history = history, error = if (callState == Call.State.Error) "SIP_CALL_FAILED" else null)
         }
     }
-    fun register(host: String, port: Int, username: String, password: String, stun: String = "") {
+    fun register(host: String, port: Int, username: String, password: String, stun: String = "", turn: SecureTurnSettings? = null) {
         require(InternalDialPolicy.validHost(host) && InternalDialPolicy.validPort(port)) { "INVALID_SERVER" }
         require(InternalDialPolicy.validExtension(username) && password.length in 8..128) { "INVALID_ACCOUNT" }
         require(stun.isEmpty() || InternalDialPolicy.validHost(stun)) { "INVALID_STUN_SERVER" }
+        require(turn == null || turn.isFresh(System.currentTimeMillis() / 1000)) { "TURN_CREDENTIALS_EXPIRED" }
         require(ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) { "MICROPHONE_PERMISSION_REQUIRED" }
         disconnect()
         mutable.value = SipUiState(registration = SipRegistration.CONNECTING)
@@ -80,11 +84,24 @@ class SipClient private constructor(context: Context) {
             engine.isVideoCaptureEnabled = false
             engine.isVideoDisplayEnabled = false
             engine.maxCalls = 1
+            engine.setUseRfc2833ForDtmf(true)
+            engine.setUseInfoForDtmf(false)
             engine.isPushNotificationEnabled = false
             engine.setUserAgent("NEXVARY-WiFi-Call", BuildConfig.VERSION_NAME)
             val policy = engine.createNatPolicy()
             policy.isIceEnabled = true
-            if (stun.isNotEmpty()) { policy.stunServer = stun; policy.isStunEnabled = true }
+            if (turn != null) {
+                // Exactly one TURN transport: TLS. Never fall back to UDP or clear TCP.
+                policy.stunServer = turn.sdkServer
+                policy.stunServerUsername = turn.username
+                policy.isStunEnabled = false
+                policy.isUdpTurnTransportEnabled = false
+                policy.isTcpTurnTransportEnabled = false
+                policy.isTlsTurnTransportEnabled = true
+                policy.isTurnEnabled = true
+                engine.addAuthInfo(factory.createAuthInfo(turn.username, null, turn.password, null, null, null))
+                turnExpirySeconds = turn.expiresAtSeconds
+            } else if (stun.isNotEmpty()) { policy.stunServer = stun; policy.isStunEnabled = true }
             engine.natPolicy = policy
             engine.addListener(listener)
             engine.start()
@@ -103,6 +120,7 @@ class SipClient private constructor(context: Context) {
             engine.addAccount(account)
             engine.defaultAccount = account
             domain = host
+            mutable.value = mutable.value.copy(accountConfigured = true, turnTlsConfigured = turn != null)
         } catch (e: Exception) {
             disconnect()
             mutable.value = mutable.value.copy(registration = SipRegistration.FAILED, error = "SIP_SETUP_FAILED")
@@ -110,6 +128,7 @@ class SipClient private constructor(context: Context) {
         }
     }
     fun dial(extension: String) {
+        requireTurnFresh()
         require(InternalDialPolicy.validExtension(extension)) { "INTERNAL_EXTENSION_ONLY" }
         require(mutable.value.registration == SipRegistration.REGISTERED) { "SIP_NOT_REGISTERED" }
         require(mutable.value.call in setOf(SipCallPhase.IDLE, SipCallPhase.FAILED)) { "CALL_BUSY" }
@@ -123,6 +142,7 @@ class SipClient private constructor(context: Context) {
         checkNotNull(engine.inviteAddressWithParams(target, params)) { "INVITE_FAILED" }
     }
     fun answer() {
+        requireTurnFresh()
         require(mutable.value.call == SipCallPhase.INCOMING) { "NO_INCOMING_CALL" }
         val engine = checkNotNull(core)
         val call = checkNotNull(engine.currentCall)
@@ -130,6 +150,19 @@ class SipClient private constructor(context: Context) {
         params.isVideoEnabled = false
         params.mediaEncryption = MediaEncryption.SRTP
         check(call.acceptWithParams(params) == 0) { "ANSWER_FAILED" }
+    }
+    fun sendDtmf(digit: Char) {
+        require(DtmfPolicy.validDigit(digit)) { "INVALID_DTMF_DIGIT" }
+        require(mutable.value.call == SipCallPhase.MEDIA_ACTIVE && mutable.value.srtpActive) { "SECURE_MEDIA_REQUIRED" }
+        val call = checkNotNull(core?.currentCall) { "NO_ACTIVE_CALL" }
+        check(call.sendDtmf(digit) == 0) { "DTMF_SEND_FAILED" }
+    }
+    fun refreshRegistration() {
+        require(mutable.value.accountConfigured) { "SIP_ACCOUNT_NOT_CONFIGURED" }
+        checkNotNull(core).refreshRegisters()
+    }
+    private fun requireTurnFresh() {
+        require(turnExpirySeconds?.let { it > System.currentTimeMillis() / 1000 } != false) { "TURN_CREDENTIALS_EXPIRED" }
     }
     fun hangUp() {
         val call = core?.currentCall ?: return
@@ -158,6 +191,7 @@ class SipClient private constructor(context: Context) {
         }
         core = null
         domain = ""
+        turnExpirySeconds = null
         mutable.value = SipUiState(history = mutable.value.history)
     }
 }
@@ -166,4 +200,5 @@ enum class SipCallPhase { IDLE, DIALLING, RINGING, INCOMING, CONNECTED, MEDIA_AC
 data class SipHistoryEntry(val extension: String, val incoming: Boolean, val seconds: Int, val failed: Boolean)
 data class SipUiState(val registration: SipRegistration = SipRegistration.OFFLINE, val call: SipCallPhase = SipCallPhase.IDLE,
     val peer: String = "", val srtpActive: Boolean = false, val muted: Boolean = false, val speaker: Boolean = false,
+    val accountConfigured: Boolean = false, val turnTlsConfigured: Boolean = false,
     val error: String? = null, val history: List<SipHistoryEntry> = emptyList())

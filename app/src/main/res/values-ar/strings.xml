@@ -224,4 +224,14 @@
     <string name="sip_phase_ringing">يرن</string>
     <string name="sip_phase_connected">متصل</string>
     <string name="sip_phase_media">جلسة الصوت نشطة</string>
+    <string name="sip_turn_enable">TURN عبر TLS اختياري</string>
+    <string name="sip_turn_description">استخدم بيانات مؤقتة يصدرها خادمك. صيغة المستخدم: expiry:user. الصلاحية القصوى ساعة؛ الأسرار في الذاكرة فقط وتمسح بعد الإعداد. لم يجر اختبار الترحيل بعد.</string>
+    <string name="sip_turn_endpoint">عنوان TURN TLS</string>
+    <string name="sip_turn_username">مستخدم TURN المؤقت · expiry:user</string>
+    <string name="sip_turn_password">كلمة مرور TURN المؤقتة · في الذاكرة فقط</string>
+    <string name="sip_turn_unverified">تم إعداد TURN TLS. تخصيص الترحيل وعبور الشبكات الفعلية لم يثبتا.</string>
+    <string name="sip_dtmf_keypad">لوحة الأرقام أثناء المكالمة (DTMF)</string>
+    <string name="sip_dtmf_error">تعذر إرسال النغمة. يلزم وجود جلسة صوت آمنة نشطة.</string>
+    <string name="sip_refresh_registration">تحديث تسجيل الحساب الحالي</string>
+    <string name="sip_turn_invalid">عنوان TURN أو البيانات المؤقتة غير صالحة أو انتهت. اطلب بيانات جديدة من خادمك.</string>
 </resources>

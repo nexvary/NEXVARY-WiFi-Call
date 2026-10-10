@@ -224,4 +224,14 @@
     <string name="sip_phase_ringing">Klingeln</string>
     <string name="sip_phase_connected">Verbunden</string>
     <string name="sip_phase_media">Audiositzung aktiv</string>
+    <string name="sip_turn_enable">Optionales TURN über TLS</string>
+    <string name="sip_turn_description">Kurzlebige Zugangsdaten Ihres Servers verwenden. Benutzer: expiry:user. Höchstens eine Stunde; Geheimnisse nur im Speicher und nach Einrichtung gelöscht. Relay noch ungeprüft.</string>
+    <string name="sip_turn_endpoint">TURN-TLS-Adresse</string>
+    <string name="sip_turn_username">Temporärer TURN-Benutzer · expiry:user</string>
+    <string name="sip_turn_password">Temporäres TURN-Passwort · nur im Speicher</string>
+    <string name="sip_turn_unverified">TURN TLS eingerichtet. Relay-Zuweisung und reale Netzüberquerung ungeprüft.</string>
+    <string name="sip_dtmf_keypad">Wähltastatur im Anruf (DTMF)</string>
+    <string name="sip_dtmf_error">Ton konnte nicht gesendet werden. Aktive sichere Mediensitzung erforderlich.</string>
+    <string name="sip_refresh_registration">Bestehende Registrierung erneuern</string>
+    <string name="sip_turn_invalid">TURN-Adresse oder temporäre Zugangsdaten ungültig oder abgelaufen. Neue Daten vom Server anfordern.</string>
 </resources>

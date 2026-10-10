@@ -17,6 +17,7 @@ test -r "$module_file"
 runtime=$(mktemp -d)
 pbx_pid=""
 peer_pid=""
+instrument_pid=""
 mkdir -p android-sip-evidence
 asterisk -V > android-sip-evidence/asterisk-version.txt
 grep -Eq '^Asterisk 20\.' android-sip-evidence/asterisk-version.txt || {
@@ -26,7 +27,11 @@ grep -Eq '^Asterisk 20\.' android-sip-evidence/asterisk-version.txt || {
 cleanup() {
   status=$?
   trap - EXIT
-  adb shell run-as com.nexvary.wificall rm -f files/nexvary-sip-e2e.json 2>/dev/null || true
+  if [[ -n "$instrument_pid" ]]; then kill "$instrument_pid" 2>/dev/null || true; wait "$instrument_pid" 2>/dev/null || true; fi
+  if [[ ! -f android-sip-evidence/android/result.json ]]; then
+    adb pull /sdcard/Download/NEXVARY-SIP-E2E android-sip-evidence/android >/dev/null 2>&1 || true
+  fi
+  adb shell run-as com.nexvary.wificall rm -f files/nexvary-sip-e2e.json files/nexvary-sip-e2e-restart.json 2>/dev/null || true
   if [[ -n "$peer_pid" ]]; then kill "$peer_pid" 2>/dev/null || true; wait "$peer_pid" 2>/dev/null || true; fi
   if [[ -n "$pbx_pid" ]]; then kill "$pbx_pid" 2>/dev/null || true; wait "$pbx_pid" 2>/dev/null || true; fi
   if [[ "$status" -ne 0 ]]; then
@@ -102,7 +107,8 @@ fixture={'host':'10.0.2.2','port':5061,'username':'1001','password':account,'pee
 (r/'android-fixture.json').write_text(json.dumps(fixture))
 (r/'android-fixture.json').chmod(0o600)
 PY
-asterisk -f -C "$runtime/config/asterisk.conf" > "$runtime/pbx.log" 2>&1 &
+start_fixture_pbx() {
+asterisk -f -C "$runtime/config/asterisk.conf" >> "$runtime/pbx.log" 2>&1 &
 pbx_pid=$!
 ready=false
 for attempt in $(seq 1 40); do
@@ -133,6 +139,39 @@ for attempt in $(seq 1 30); do
 done
 test "$ready" = true
 printf '%s\n' '{"synthetic":true,"generated_endpoints_ready":2,"generated_auths_ready":2,"registrar_running":true,"digest_authenticator_running":true}' > android-sip-evidence/pbx-readiness.json
+}
+wait_android_stage() {
+  python3 - "$1" "$2" <<'PY'
+import json, subprocess, sys, time
+key=sys.argv[1]
+assert key in ('ready_for_gateway_restart','gateway_loss_observed')
+deadline=time.monotonic()+int(sys.argv[2])
+while time.monotonic()<deadline:
+    stage=subprocess.run(['adb','shell','head','-c','1024','/sdcard/Download/NEXVARY-SIP-E2E/stage.json'],
+                         capture_output=True,timeout=5,check=False)
+    if stage.returncode==0:
+        try:
+            if json.loads(stage.stdout).get(key) is True:
+                sys.exit(0)
+        except (ValueError,AttributeError):
+            pass
+    time.sleep(.25)
+raise SystemExit('Bounded synthetic gateway stage handoff did not arrive')
+PY
+}
+write_restart_control() {
+  local control_phase="$1"
+  CONTROL_PHASE="$control_phase" RUNTIME="$runtime" python3 - <<'PY'
+import json, os
+from pathlib import Path
+phase=os.environ['CONTROL_PHASE']
+assert phase in ('stopped','restarted')
+Path(os.environ['RUNTIME'],'restart-control.json').write_text(json.dumps({
+    'gateway_stopped':phase=='stopped','gateway_restarted':phase=='restarted'}))
+PY
+  adb shell run-as com.nexvary.wificall sh -c '"cat > files/nexvary-sip-e2e-restart.json"' < "$runtime/restart-control.json"
+}
+start_fixture_pbx
 python3 scripts/pbx_android_peer.py --ca "$runtime/tls/fullchain.pem" --accounts "$runtime/config/accounts.json" \
   --ready "$runtime/peer-ready" --output android-sip-evidence/peer-result.json > "$runtime/peer.log" 2>&1 &
 peer_pid=$!
@@ -145,23 +184,53 @@ test -f "$runtime/peer-ready"
 adb shell run-as com.nexvary.wificall mkdir -p files
 adb shell run-as com.nexvary.wificall sh -c '"cat > files/nexvary-sip-e2e.json"' < "$runtime/android-fixture.json"
 adb shell rm -rf /sdcard/Download/NEXVARY-SIP-E2E
-set +e
 adb shell am instrument -w -e class com.nexvary.wificall.platform.sip.SipGatewayE2ETest \
-  com.nexvary.wificall.test/androidx.test.runner.AndroidJUnitRunner > "$runtime/instrumentation.log" 2>&1
+  com.nexvary.wificall.test/androidx.test.runner.AndroidJUnitRunner > "$runtime/instrumentation.log" 2>&1 &
+instrument_pid=$!
+# Preserve all SIP/audio/DTMF/BYE assertions before testing gateway loss.
+set +e
+wait "$peer_pid"
+peer_status=$?
+set -e
+peer_pid=""
+if [[ "$peer_status" -ne 0 ]]; then
+  # Let the independently bounded Android test export its own failure evidence.
+  wait "$instrument_pid" || true
+  instrument_pid=""
+  exit 1
+fi
+python3 - <<'PY'
+import json
+from pathlib import Path
+proof=json.loads(Path('android-sip-evidence/peer-result.json').read_text())
+assert proof['success'] is True and proof['rfc4733_dtmf_sequence_verified'] is True
+PY
+wait_android_stage ready_for_gateway_restart 30
+# Stop only the disposable PID this script started; no system service command.
+kill "$pbx_pid"
+wait "$pbx_pid" || true
+pbx_pid=""
+write_restart_control stopped
+wait_android_stage gateway_loss_observed 45
+start_fixture_pbx
+write_restart_control restarted
+printf '%s\n' '{"synthetic":true,"only_owned_gateway_pid_stopped":true,"android_loss_stage_observed":true,"same_config_gateway_restarted":true,"physical_network_loss_tested":false}' > android-sip-evidence/gateway-restart.json
+set +e
+wait "$instrument_pid"
 instrument_status=$?
+instrument_pid=""
 set -e
 adb pull /sdcard/Download/NEXVARY-SIP-E2E android-sip-evidence/android >/dev/null
 # am instrument can return zero even after assertion failures. Require explicit
 # runner success and machine-readable positive proofs, never expose raw logs.
 test "$instrument_status" = 0
 grep -q 'OK (1 test)' "$runtime/instrumentation.log"
-wait "$peer_pid"
-peer_pid=""
 test -s android-sip-evidence/peer-result.json
 python3 - <<'PY'
 import json
 from pathlib import Path
 result=json.loads(Path('android-sip-evidence/android/result.json').read_text())
 assert result['success'] is True, 'Android SIP E2E proof was not successful'
+assert result['gateway_loss_observed'] is True and result['gateway_reregistration'] is True
 print('Android emulator SIP/TLS/SRTP synthetic integration passed')
 PY

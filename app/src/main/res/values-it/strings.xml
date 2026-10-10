@@ -224,4 +224,14 @@
     <string name="sip_phase_ringing">Squillo</string>
     <string name="sip_phase_connected">Connesso</string>
     <string name="sip_phase_media">Sessione audio attiva</string>
+    <string name="sip_turn_enable">TURN facoltativo tramite TLS</string>
+    <string name="sip_turn_description">Usa credenziali temporanee del server. Utente: expiry:user. Massimo una ora; segreti solo in memoria e rimossi dopo la configurazione. Relay non ancora verificato.</string>
+    <string name="sip_turn_endpoint">Indirizzo TURN TLS</string>
+    <string name="sip_turn_username">Utente TURN temporaneo · expiry:user</string>
+    <string name="sip_turn_password">Password TURN temporanea · solo in memoria</string>
+    <string name="sip_turn_unverified">TURN TLS configurato. Allocazione relay e attraversamento rete reale non verificati.</string>
+    <string name="sip_dtmf_keypad">Tastierino durante chiamata (DTMF)</string>
+    <string name="sip_dtmf_error">Tono non inviato. Serve una sessione audio sicura attiva.</string>
+    <string name="sip_refresh_registration">Aggiorna registrazione esistente</string>
+    <string name="sip_turn_invalid">Indirizzo TURN o credenziali temporanee non validi o scaduti. Richiedi nuove credenziali al server.</string>
 </resources>

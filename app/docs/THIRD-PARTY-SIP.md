@@ -13,8 +13,11 @@ GPLv3 license:
 https://www.gnu.org/licenses/gpl-3.0.html
 
 The current vendor licensing page describes an AGPLv3/commercial dual-license
-model. That does not justify replacing the exact pinned artifact declaration
-without inspecting a newer version and its component notices:
+model. Inspection of the exact 5.4.100 sources JAR also found an AGPLv3-or-later
+header in `org/linphone/core/tools/service/CoreService.java`, which this app
+subclasses. The Maven label therefore does not establish a uniform GPL-only
+license for every SDK component. Component notices take precedence over a
+single aggregate POM label:
 https://www.linphone.org/en/liblinphone-voip-sdk/
 
 This integration does not silently relicense this application's existing source.
@@ -27,3 +30,7 @@ source bundle must be completed before public release.
 
 Official Android integration/service/audio-focus documentation:
 https://wiki.linphone.org/xwiki/wiki/public/view/Lib/Getting%20started/Android/
+
+Exact inspected source artifact: https://download.linphone.org/releases/maven_repository/org/linphone/linphone-sdk-android/5.4.100/linphone-sdk-android-5.4.100-sources.jar
+
+AGPLv3 text: https://www.gnu.org/licenses/agpl-3.0.html

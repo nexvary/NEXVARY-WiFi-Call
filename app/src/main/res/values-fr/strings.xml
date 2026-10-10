@@ -224,4 +224,14 @@
     <string name="sip_phase_ringing">Sonnerie</string>
     <string name="sip_phase_connected">Connecté</string>
     <string name="sip_phase_media">Session audio active</string>
+    <string name="sip_turn_enable">TURN via TLS facultatif</string>
+    <string name="sip_turn_description">Utilisez les identifiants temporaires du serveur. Utilisateur: expiry:user. Une heure maximum; secrets en mémoire puis effacés après configuration. Relais non testé.</string>
+    <string name="sip_turn_endpoint">Adresse TURN TLS</string>
+    <string name="sip_turn_username">Utilisateur TURN temporaire · expiry:user</string>
+    <string name="sip_turn_password">Mot de passe TURN temporaire · en mémoire</string>
+    <string name="sip_turn_unverified">TURN TLS configuré. Allocation de relais et traversée réseau réelle non vérifiées.</string>
+    <string name="sip_dtmf_keypad">Clavier pendant appel (DTMF)</string>
+    <string name="sip_dtmf_error">Tonalité non envoyée. Une session média sécurisée active est requise.</string>
+    <string name="sip_refresh_registration">Actualiser inscription existante</string>
+    <string name="sip_turn_invalid">Adresse TURN ou identifiants temporaires invalides ou expirés. Demandez de nouveaux identifiants au serveur.</string>
 </resources>
